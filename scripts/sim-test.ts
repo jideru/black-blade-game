@@ -47,7 +47,7 @@ console.log("Test 1: a far-off grunt stays idle (outside aggro range)");
   const enemies = createEnemies();
   const e = enemies[0]; // x = 700, ~560px away
   const startX = e.x;
-  for (let i = 0; i < 60; i++) updateEnemy(e, player, enemies);
+  for (let i = 0; i < 60; i++) updateEnemy(e, player, enemies, []);
   assert(e.state === "idle", "stays idle when player is far");
   assert(Math.abs(e.x - startX) < 1, "does not move toward a distant player");
 }
@@ -60,7 +60,7 @@ console.log("Test 2: a grunt chases the player when in aggro range");
   player.x = e.x - 200; // within 360px aggro range, to the enemy's left
   player.y = e.y;
   const startDist = Math.abs(e.x - player.x);
-  for (let i = 0; i < 60; i++) updateEnemy(e, player, enemies);
+  for (let i = 0; i < 60; i++) updateEnemy(e, player, enemies, []);
   const endDist = Math.abs(e.x - player.x);
   assert(endDist < startDist, `closes the gap (from ${startDist.toFixed(0)} to ${endDist.toFixed(0)}px)`);
   assert(e.facing === -1, "faces the player to its left");
@@ -78,7 +78,7 @@ console.log("Test 3: a grunt attacks and damages an in-range player");
   const startHp = player.hp;
   for (let i = 0; i < 120; i++) {
     if (player.invulnTimer > 0) player.invulnTimer--;
-    updateEnemy(e, player, enemies);
+    updateEnemy(e, player, enemies, []);
     if (e.state === "attack") everAttacked = true;
     totalDamage += resolveEnemyAttack(e, player);
   }
@@ -118,8 +118,8 @@ console.log("Test 5: overlapping grunts separate while chasing");
   player.x = 1400;
   player.y = 430;
   for (let i = 0; i < 40; i++) {
-    updateEnemy(a, player, enemies);
-    updateEnemy(b, player, enemies);
+    updateEnemy(a, player, enemies, []);
+    updateEnemy(b, player, enemies, []);
   }
   const gap = Math.hypot(a.x - b.x, a.y - b.y);
   assert(gap > 5, `grunts unstick from the same pixel (gap ${gap.toFixed(1)}px)`);

@@ -8,6 +8,7 @@ import {
   VIEW_WIDTH,
   WORLD_WIDTH,
 } from "./constants";
+import { backEdgeY, type Obstacle } from "./terrain";
 import type { Character, Enemy, GameState } from "./types";
 
 function lerp(a: number, b: number, t: number) {
@@ -43,23 +44,34 @@ const ENEMY_COLORS: KnightColors = {
   blade: "#9a9a9a",
 };
 
+type Drawable =
+  | { y: number; sort: number; kind: "player"; ref: Character }
+  | { y: number; sort: number; kind: "enemy"; ref: Enemy }
+  | { y: number; sort: number; kind: "obstacle"; ref: Obstacle };
+
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.clearRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
   drawBackground(ctx, state.camX);
 
-  // Draw characters back-to-front (smaller y first) for correct overlap.
-  const drawables: Character[] = [state.player, ...state.enemies];
-  drawables.sort((a, b) => a.y - b.y);
+  // Everything on the ground plane is drawn back-to-front (by feet y) so closer
+  // things overlap farther ones — characters and obstacles interleave.
+  const drawables: Drawable[] = [
+    { y: state.player.y, sort: state.player.y, kind: "player", ref: state.player },
+    ...state.enemies.map((e): Drawable => ({ y: e.y, sort: e.y, kind: "enemy", ref: e })),
+    ...state.obstacles.map((o): Drawable => ({ y: o.y, sort: o.y, kind: "obstacle", ref: o })),
+  ];
+  drawables.sort((a, b) => a.sort - b.sort);
 
-  for (const c of drawables) {
-    const screenX = c.x - state.camX;
-    if (screenX < -120 || screenX > VIEW_WIDTH + 120) continue;
-    if (c === state.player) {
-      drawKnight(ctx, c, screenX, PLAYER_COLORS, false);
+  for (const d of drawables) {
+    const screenX = d.ref.x - state.camX;
+    if (screenX < -140 || screenX > VIEW_WIDTH + 140) continue;
+    if (d.kind === "player") {
+      drawKnight(ctx, d.ref, screenX, PLAYER_COLORS, false);
+    } else if (d.kind === "enemy") {
+      drawKnight(ctx, d.ref, screenX, ENEMY_COLORS, d.ref.flashTimer > 0);
+      if (d.ref.state !== "dead") drawEnemyHealthBar(ctx, d.ref, screenX);
     } else {
-      const e = c as Enemy;
-      drawKnight(ctx, e, screenX, ENEMY_COLORS, e.flashTimer > 0);
-      if (e.state !== "dead") drawEnemyHealthBar(ctx, e, screenX);
+      drawObstacle(ctx, d.ref, screenX);
     }
   }
 }
@@ -77,37 +89,154 @@ function drawBackground(ctx: CanvasRenderingContext2D, camX: number) {
   drawHills(ctx, camX * 0.2, FLOOR_TOP - 30, "#4a3a66", 220, 520);
   drawHills(ctx, camX * 0.4, FLOOR_TOP + 5, "#3a2e52", 160, 400);
 
-  // Ground band
-  ctx.fillStyle = "#3b2c22";
-  ctx.fillRect(0, FLOOR_TOP, VIEW_WIDTH, VIEW_HEIGHT - FLOOR_TOP);
+  // Grassy embankment behind the path (fills down past the lowest back edge).
+  const grass = ctx.createLinearGradient(0, FLOOR_TOP - 10, 0, FLOOR_TOP + 70);
+  grass.addColorStop(0, "#3a5230");
+  grass.addColorStop(1, "#2c3f24");
+  ctx.fillStyle = grass;
+  ctx.fillRect(0, FLOOR_TOP - 10, VIEW_WIDTH, 90);
+
+  drawTrees(ctx, camX);
+
+  // The walkable path: a polygon whose top edge follows the squiggly back edge.
+  const step = 6;
+  const pathTop = (sx: number) => backEdgeY(sx + camX);
+  ctx.beginPath();
+  ctx.moveTo(0, VIEW_HEIGHT);
+  ctx.lineTo(0, pathTop(0));
+  for (let sx = 0; sx <= VIEW_WIDTH; sx += step) ctx.lineTo(sx, pathTop(sx));
+  ctx.lineTo(VIEW_WIDTH, VIEW_HEIGHT);
+  ctx.closePath();
   const grnd = ctx.createLinearGradient(0, FLOOR_TOP, 0, VIEW_HEIGHT);
   grnd.addColorStop(0, "#5a4632");
   grnd.addColorStop(1, "#2c2018");
   ctx.fillStyle = grnd;
-  ctx.fillRect(0, FLOOR_TOP, VIEW_WIDTH, VIEW_HEIGHT - FLOOR_TOP);
+  ctx.fill();
 
-  // Path stripes for a sense of scrolling
-  ctx.strokeStyle = "rgba(0,0,0,0.18)";
+  // Scrolling stripes, clipped to the path so they respect the squiggly edge.
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = "rgba(0,0,0,0.15)";
   ctx.lineWidth = 2;
   const spacing = 120;
   const offset = -((camX * 0.9) % spacing);
-  for (let x = offset; x < VIEW_WIDTH; x += spacing) {
+  for (let x = offset; x < VIEW_WIDTH + 60; x += spacing) {
     ctx.beginPath();
-    ctx.moveTo(x, FLOOR_TOP);
+    ctx.moveTo(x, FLOOR_TOP - 20);
     ctx.lineTo(x - 40, VIEW_HEIGHT);
     ctx.stroke();
   }
+  ctx.restore();
 
-  // Back wall edge line
-  ctx.strokeStyle = "rgba(0,0,0,0.3)";
-  ctx.lineWidth = 3;
+  // The squiggly edge itself: a soft shadow lip plus a lighter grass rim.
   ctx.beginPath();
-  ctx.moveTo(0, FLOOR_TOP);
-  ctx.lineTo(VIEW_WIDTH, FLOOR_TOP);
+  for (let sx = 0; sx <= VIEW_WIDTH; sx += step) {
+    const y = pathTop(sx);
+    if (sx === 0) ctx.moveTo(sx, y);
+    else ctx.lineTo(sx, y);
+  }
+  ctx.strokeStyle = "rgba(0,0,0,0.35)";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.beginPath();
+  for (let sx = 0; sx <= VIEW_WIDTH; sx += step) {
+    const y = pathTop(sx) - 3;
+    if (sx === 0) ctx.moveTo(sx, y);
+    else ctx.lineTo(sx, y);
+  }
+  ctx.strokeStyle = "#4f7038";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  drawTrees(ctx, camX);
   drawLevelEnd(ctx, camX);
+}
+
+function drawObstacle(ctx: CanvasRenderingContext2D, o: Obstacle, screenX: number) {
+  const scale = depthScale(o.y);
+  ctx.save();
+  ctx.translate(screenX, o.y);
+  ctx.scale(scale, scale);
+
+  // Ground shadow.
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, o.r * 1.05, o.r * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (o.kind === "rock") {
+    drawRock(ctx, o);
+  } else {
+    drawThorns(ctx, o);
+  }
+  ctx.restore();
+}
+
+function drawRock(ctx: CanvasRenderingContext2D, o: Obstacle) {
+  const r = o.r;
+  // Main boulder body.
+  ctx.fillStyle = "#7a7a82";
+  ctx.beginPath();
+  ctx.moveTo(-r, 0);
+  ctx.lineTo(-r * 0.7, -r * 0.95);
+  ctx.lineTo(-r * 0.1, -r * 1.25);
+  ctx.lineTo(r * 0.6, -r * 1.0);
+  ctx.lineTo(r, -r * 0.2);
+  ctx.lineTo(r * 0.7, 0);
+  ctx.closePath();
+  ctx.fill();
+  // Shading on the right/underside.
+  ctx.fillStyle = "#5b5b63";
+  ctx.beginPath();
+  ctx.moveTo(r, -r * 0.2);
+  ctx.lineTo(r * 0.6, -r * 1.0);
+  ctx.lineTo(r * 0.1, -r * 0.7);
+  ctx.lineTo(r * 0.7, 0);
+  ctx.closePath();
+  ctx.fill();
+  // Highlight facet.
+  ctx.fillStyle = "#9a9aa2";
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.7, -r * 0.95);
+  ctx.lineTo(-r * 0.1, -r * 1.25);
+  ctx.lineTo(-r * 0.15, -r * 0.7);
+  ctx.lineTo(-r * 0.55, -r * 0.55);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawThorns(ctx: CanvasRenderingContext2D, o: Obstacle) {
+  const r = o.r;
+  // Low tangled mound.
+  ctx.fillStyle = "#243018";
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 0.2, r, r * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Spikes poking up, pseudo-randomized by seed.
+  ctx.strokeStyle = "#1a2410";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  const spikes = 9;
+  for (let i = 0; i < spikes; i++) {
+    const t = i / (spikes - 1);
+    const bx = -r + t * 2 * r;
+    const wob = Math.sin(o.seed * 1.7 + i * 2.3);
+    const h = r * (0.5 + 0.4 * Math.abs(wob));
+    ctx.beginPath();
+    ctx.moveTo(bx, -r * 0.2);
+    ctx.lineTo(bx + wob * 4, -r * 0.2 - h);
+    ctx.stroke();
+  }
+  // A few menacing tips.
+  ctx.fillStyle = "#6d8a3a";
+  for (let i = 0; i < spikes; i += 2) {
+    const t = i / (spikes - 1);
+    const bx = -r + t * 2 * r;
+    const wob = Math.sin(o.seed * 1.7 + i * 2.3);
+    const h = r * (0.5 + 0.4 * Math.abs(wob));
+    ctx.beginPath();
+    ctx.arc(bx + wob * 4, -r * 0.2 - h, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawHills(

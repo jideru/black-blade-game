@@ -35,6 +35,7 @@ export type GamePhase = "playing" | "dead" | "won";
 export interface GameState {
   player: Character;
   enemies: Enemy[];
+  obstacles: import("./terrain").Obstacle[];
   camX: number;
   phase: GamePhase;
   // HUD snapshot, read by React

@@ -1,10 +1,12 @@
 import {
+  COLLISION_RADIUS_FACTOR,
   ENEMY_ATTACK_DAMAGE,
   ENEMY_ATTACK_DEPTH,
   ENEMY_ATTACK_REACH,
   ENEMY_HURT_FLASH,
   ENEMY_HURT_STUN,
   ENEMY_KNOCKBACK,
+  HAZARD_DAMAGE,
   HURT_INVULN,
   KNOCKBACK,
   LEVEL_END_X,
@@ -21,6 +23,7 @@ import { Input } from "./input";
 import { createEnemies, createPlayer } from "./level";
 import { updatePlayer } from "./player";
 import { render } from "./render";
+import { createObstacles, hazardAt } from "./terrain";
 import type { GameState } from "./types";
 
 export type HudListener = (hud: GameState["hud"]) => void;
@@ -55,6 +58,7 @@ export class GameEngine {
     this.state = {
       player,
       enemies: createEnemies(),
+      obstacles: createObstacles(),
       camX: 0,
       phase: "playing",
       hud: {
@@ -122,7 +126,7 @@ export class GameEngine {
       return;
     }
 
-    updatePlayer(s.player, input);
+    updatePlayer(s.player, input, s.obstacles);
 
     // Resolve the player's sword against enemies during the active swing.
     const swinging = s.player.attackTimer > 0;
@@ -130,7 +134,15 @@ export class GameEngine {
       swinging && s.player.attackTimer < PLAYER_ATTACK_DURATION - 3 && !s.player.hasHitThisSwing;
     if (inHitWindow) this.resolvePlayerAttack();
 
-    for (const e of s.enemies) updateEnemy(e, s.player, s.enemies);
+    // Standing in thorns chips away at the player's health.
+    if (s.player.invulnTimer === 0) {
+      const r = s.player.w * COLLISION_RADIUS_FACTOR;
+      if (hazardAt(s.player.x, s.player.y, r, s.obstacles)) {
+        this.damagePlayer(HAZARD_DAMAGE, s.player.facing);
+      }
+    }
+
+    for (const e of s.enemies) updateEnemy(e, s.player, s.enemies, s.obstacles);
 
     // Resolve enemy swings against the player at each swing's hit frame.
     for (const e of s.enemies) this.resolveEnemyAttack(e);

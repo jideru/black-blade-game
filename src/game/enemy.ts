@@ -1,4 +1,5 @@
 import {
+  COLLISION_RADIUS_FACTOR,
   ENEMY_AGGRO_RANGE,
   ENEMY_ATTACK_COOLDOWN,
   ENEMY_ATTACK_DEPTH,
@@ -6,21 +7,17 @@ import {
   ENEMY_ATTACK_RANGE,
   ENEMY_SEPARATION,
   ENEMY_SPEED,
-  FLOOR_BOTTOM,
-  FLOOR_TOP,
 } from "./constants";
+import { blockedByObstacle, clampDepth, type Obstacle } from "./terrain";
 import type { Character, Enemy } from "./types";
 
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
-}
-
 // Decay and apply residual knockback velocity (set when the grunt is hit).
-function applyKnockback(enemy: Enemy) {
+function applyKnockback(enemy: Enemy, obstacles: Obstacle[]) {
   if (Math.abs(enemy.vx) > 0.1 || Math.abs(enemy.vy) > 0.1) {
-    enemy.x += enemy.vx;
-    enemy.y += enemy.vy;
-    enemy.y = clamp(enemy.y, FLOOR_TOP, FLOOR_BOTTOM);
+    const r = enemy.w * COLLISION_RADIUS_FACTOR;
+    const tryX = enemy.x + enemy.vx;
+    if (!blockedByObstacle(tryX, enemy.y, r, obstacles)) enemy.x = tryX;
+    enemy.y = clampDepth(enemy.x, enemy.y + enemy.vy);
     enemy.vx *= 0.8;
     enemy.vy *= 0.8;
   } else {
@@ -33,7 +30,12 @@ function applyKnockback(enemy: Enemy) {
 // `others` is the full enemy list, used so grunts spread out instead of
 // stacking on the same pixel. Damage to the player is resolved in the engine
 // during the swing's hit frame (see GameEngine.resolveEnemyAttack).
-export function updateEnemy(enemy: Enemy, player: Character, others: Enemy[]) {
+export function updateEnemy(
+  enemy: Enemy,
+  player: Character,
+  others: Enemy[],
+  obstacles: Obstacle[]
+) {
   if (enemy.state === "dead") return;
 
   if (enemy.flashTimer > 0) enemy.flashTimer--;
@@ -46,7 +48,7 @@ export function updateEnemy(enemy: Enemy, player: Character, others: Enemy[]) {
 
   // Stunned after being hit: take the knockback and do nothing else.
   if (enemy.hurtTimer > 0) {
-    applyKnockback(enemy);
+    applyKnockback(enemy, obstacles);
     enemy.state = "hurt";
     return;
   }
@@ -111,9 +113,12 @@ export function updateEnemy(enemy: Enemy, player: Character, others: Enemy[]) {
     if (len > 0) {
       vx /= len;
       vy /= len;
-      enemy.x += vx * ENEMY_SPEED;
-      enemy.y += vy * ENEMY_SPEED;
-      enemy.y = clamp(enemy.y, FLOOR_TOP, FLOOR_BOTTOM);
+      const r = enemy.w * COLLISION_RADIUS_FACTOR;
+      const tryX = enemy.x + vx * ENEMY_SPEED;
+      if (!blockedByObstacle(tryX, enemy.y, r, obstacles)) enemy.x = tryX;
+      const tryY = clampDepth(enemy.x, enemy.y + vy * ENEMY_SPEED);
+      if (!blockedByObstacle(enemy.x, tryY, r, obstacles)) enemy.y = tryY;
+      enemy.y = clampDepth(enemy.x, enemy.y);
       enemy.state = "walk";
       enemy.animPhase += 0.2;
     } else {
@@ -123,7 +128,7 @@ export function updateEnemy(enemy: Enemy, player: Character, others: Enemy[]) {
   }
 
   // Out of range: idle, shedding any leftover knockback.
-  applyKnockback(enemy);
+  applyKnockback(enemy, obstacles);
   enemy.state = "idle";
   enemy.animPhase += 0.04;
 }

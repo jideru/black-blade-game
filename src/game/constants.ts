@@ -23,6 +23,8 @@ export const PLAYER_ATTACK_REACH = 64; // how far in front the hitbox extends
 export const PLAYER_ATTACK_DEPTH = 40; // depth tolerance for a hit
 export const HURT_INVULN = 28; // frames of invulnerability after taking a hit
 export const KNOCKBACK = 7; // knockback applied to the player when hit
+export const HAZARD_DAMAGE = 8; // damage per tick from standing in thorns
+export const COLLISION_RADIUS_FACTOR = 0.4; // body collision radius = w * this
 
 // Enemy tuning
 export const ENEMY_MAX_HP = 50;

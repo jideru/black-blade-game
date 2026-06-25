@@ -1,15 +1,15 @@
 import {
-  FLOOR_BOTTOM,
-  FLOOR_TOP,
+  COLLISION_RADIUS_FACTOR,
   LEVEL_END_X,
   PLAYER_ATTACK_COOLDOWN,
   PLAYER_ATTACK_DURATION,
   PLAYER_SPEED,
 } from "./constants";
 import type { InputState } from "./input";
+import { blockedByObstacle, clampDepth, type Obstacle } from "./terrain";
 import type { Character } from "./types";
 
-export function updatePlayer(player: Character, input: InputState) {
+export function updatePlayer(player: Character, input: InputState, obstacles: Obstacle[]) {
   // Tick timers.
   if (player.attackTimer > 0) player.attackTimer--;
   if (player.attackCooldown > 0) player.attackCooldown--;
@@ -53,12 +53,15 @@ export function updatePlayer(player: Character, input: InputState) {
   if (dx > 0) player.facing = 1;
   else if (dx < 0) player.facing = -1;
 
-  player.x += player.vx;
-  player.y += player.vy;
-
-  // Clamp to the level bounds and the walkable depth band.
-  player.x = Math.max(40, Math.min(LEVEL_END_X, player.x));
-  player.y = Math.max(FLOOR_TOP, Math.min(FLOOR_BOTTOM, player.y));
+  // Move each axis separately and block on rocks, so the player slides along
+  // an obstacle instead of sticking to it.
+  const r = player.w * COLLISION_RADIUS_FACTOR;
+  const tryX = Math.max(40, Math.min(LEVEL_END_X, player.x + player.vx));
+  if (!blockedByObstacle(tryX, player.y, r, obstacles)) player.x = tryX;
+  const tryY = clampDepth(player.x, player.y + player.vy);
+  if (!blockedByObstacle(player.x, tryY, r, obstacles)) player.y = tryY;
+  // Keep depth valid even if x moved into a narrower part of the path.
+  player.y = clampDepth(player.x, player.y);
 
   const moving = dx !== 0 || dy !== 0;
   player.state = moving ? "walk" : "idle";

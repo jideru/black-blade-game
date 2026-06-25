@@ -79,6 +79,12 @@ gameplay speed is identical on 60Hz and 120Hz (ProMotion) displays.
       into depth lanes instead of stacking), and commit telegraphed attacks that
       deal damage. Getting hit interrupts a grunt's swing; the player gets
       invulnerability frames and a knockback. Lose when HP hits zero.
+- [x] **Organic map:** the back edge of the path squiggles with the terrain
+      (`src/game/terrain.ts`) instead of being a straight line, and the map is
+      dotted with **rocks** (solid cover you slide around) and **thorn patches**
+      (hazards that chip your health). Obstacles depth-sort with characters and
+      are placed to always leave a clear lane (verified completable by the
+      playthrough sims).
 
 Ideas for later: health/score pickups, multiple enemy types, a boss at the gate,
 combo attacks, and sound.

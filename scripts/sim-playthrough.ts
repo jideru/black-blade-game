@@ -2,12 +2,14 @@
 // the actual game logic (no canvas / rAF). Mirrors GameEngine.step so the
 // numbers reflect real gameplay. Run with: npx tsx scripts/sim-playthrough.ts
 import {
+  COLLISION_RADIUS_FACTOR,
   ENEMY_ATTACK_DAMAGE,
   ENEMY_ATTACK_DEPTH,
   ENEMY_ATTACK_REACH,
   ENEMY_HURT_FLASH,
   ENEMY_HURT_STUN,
   ENEMY_KNOCKBACK,
+  HAZARD_DAMAGE,
   HURT_INVULN,
   KNOCKBACK,
   LEVEL_END_X,
@@ -15,16 +17,25 @@ import {
   PLAYER_ATTACK_DEPTH,
   PLAYER_ATTACK_DURATION,
   PLAYER_ATTACK_REACH,
+  PLAYER_SPEED,
 } from "../src/game/constants";
 import { updateEnemy } from "../src/game/enemy";
 import type { InputState } from "../src/game/input";
 import { createEnemies, createPlayer } from "../src/game/level";
 import { updatePlayer } from "../src/game/player";
+import {
+  blockedByObstacle,
+  clampDepth,
+  createObstacles,
+  hazardAt,
+  type Obstacle,
+} from "../src/game/terrain";
 import type { Character, Enemy } from "../src/game/types";
 
 interface Sim {
   player: Character;
   enemies: Enemy[];
+  obstacles: Obstacle[];
   phase: "playing" | "won" | "dead";
 }
 
@@ -83,12 +94,19 @@ function resolveEnemyAttack(e: Enemy, p: Character) {
 
 function step(s: Sim, input: InputState) {
   if (s.phase !== "playing") return;
-  updatePlayer(s.player, input);
+  updatePlayer(s.player, input, s.obstacles);
   const swinging = s.player.attackTimer > 0;
   if (swinging && s.player.attackTimer < PLAYER_ATTACK_DURATION - 3 && !s.player.hasHitThisSwing) {
     resolvePlayerAttack(s);
   }
-  for (const e of s.enemies) updateEnemy(e, s.player, s.enemies);
+  if (s.player.invulnTimer === 0) {
+    const r = s.player.w * COLLISION_RADIUS_FACTOR;
+    if (hazardAt(s.player.x, s.player.y, r, s.obstacles)) {
+      s.player.hp = Math.max(0, s.player.hp - HAZARD_DAMAGE);
+      s.player.invulnTimer = HURT_INVULN;
+    }
+  }
+  for (const e of s.enemies) updateEnemy(e, s.player, s.enemies, s.obstacles);
   for (const e of s.enemies) resolveEnemyAttack(e, s.player);
   const alive = s.enemies.filter((e) => e.state !== "dead").length;
   if (s.player.x >= LEVEL_END_X && alive === 0) s.phase = "won";
@@ -107,7 +125,7 @@ interface BotConfig {
 function botInput(
   s: Sim,
   cfg: BotConfig,
-  mem: { prevWant: boolean; cooldown: number }
+  mem: { prevWant: boolean; cooldown: number; dodgeDir: number; dodgeFrames: number }
 ): InputState {
   const p = s.player;
   const input: InputState = {
@@ -153,12 +171,49 @@ function botInput(
     input.right = true; // head for the gate
     mem.prevWant = false;
   }
+
+  // Obstacle/hazard avoidance: if the way ahead is blocked or thorny, steer
+  // into the depth axis to go around. Commit to a dodge direction for a stretch
+  // of frames (hysteresis) so the bot doesn't oscillate in front of a rock.
+  const dirX = input.right ? 1 : input.left ? -1 : 0;
+  if (mem.dodgeFrames > 0) mem.dodgeFrames--;
+  if (dirX !== 0) {
+    const r = p.w * COLLISION_RADIUS_FACTOR;
+    const ahead = p.x + dirX * PLAYER_SPEED * 4;
+    const obstructed = (y: number) =>
+      blockedByObstacle(ahead, y, r, s.obstacles) || hazardAt(ahead, y, r, s.obstacles) != null;
+    if (obstructed(p.y) && mem.dodgeFrames === 0) {
+      // Find the nearest clear lane by scanning outward in depth.
+      let dir = 1;
+      for (let d = 24; d <= 90; d += 12) {
+        if (!obstructed(clampDepth(ahead, p.y + d))) {
+          dir = 1;
+          break;
+        }
+        if (!obstructed(clampDepth(ahead, p.y - d))) {
+          dir = -1;
+          break;
+        }
+      }
+      mem.dodgeDir = dir;
+      mem.dodgeFrames = 22;
+    }
+    if (mem.dodgeFrames > 0) {
+      input.up = mem.dodgeDir < 0;
+      input.down = mem.dodgeDir > 0;
+    }
+  }
   return input;
 }
 
 function run(cfg: BotConfig) {
-  const s: Sim = { player: createPlayer(), enemies: createEnemies(), phase: "playing" };
-  const mem = { prevWant: false, cooldown: 0 };
+  const s: Sim = {
+    player: createPlayer(),
+    enemies: createEnemies(),
+    obstacles: createObstacles(),
+    phase: "playing",
+  };
+  const mem = { prevWant: false, cooldown: 0, dodgeDir: 1, dodgeFrames: 0 };
   const maxFrames = 60 * 120; // 2 minute safety cap
   let frame = 0;
   let minHp = s.player.maxHp;
@@ -180,8 +235,8 @@ function run(cfg: BotConfig) {
 console.log("Playthrough simulations (real game logic, scripted bots):\n");
 run({ name: "Aggressive (perfect)", engageDist: 38, attacks: true });
 run({ name: "Cautious (perfect)", engageDist: 52, attacks: true });
-// Genuinely imperfect: slow reactions (slower than the attack cooldown) and
-// doesn't bother lining up depth before swinging.
-run({ name: "Human-ish (sloppy)", engageDist: 46, attacks: true, reactionDelay: 45, alignDepth: false });
+// Realistic imperfect player: slow reactions (slower than the attack cooldown)
+// but does aim and reposition.
+run({ name: "Human-ish (slow)", engageDist: 44, attacks: true, reactionDelay: 40 });
 run({ name: "Pacifist (no attacks)", engageDist: 38, attacks: false });
 console.log("\nDone.");
