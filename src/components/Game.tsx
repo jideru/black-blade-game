@@ -6,6 +6,9 @@ import { Hud } from "./Hud";
 const EMPTY_HUD: GameState["hud"] = {
   playerHp: 100,
   playerMaxHp: 100,
+  playerMana: 100,
+  playerMaxMana: 100,
+  attackDamage: 34,
   enemiesRemaining: 0,
   progress: 0,
   phase: "playing",
@@ -41,7 +44,7 @@ export function Game() {
       </div>
       <p className="controls">
         Move <kbd>WASD</kbd> / <kbd>arrows</kbd> &nbsp;·&nbsp; Attack <kbd>Space</kbd> / <kbd>J</kbd>
-        &nbsp;·&nbsp; Restart <kbd>R</kbd>
+        &nbsp;·&nbsp; Magic <kbd>K</kbd> / <kbd>L</kbd> &nbsp;·&nbsp; Restart <kbd>R</kbd>
       </p>
     </div>
   );

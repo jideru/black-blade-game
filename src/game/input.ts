@@ -7,12 +7,17 @@ export interface InputState {
   up: boolean;
   down: boolean;
   attack: boolean;
+  magic: boolean;
   // edge-triggered: true for one poll after the key goes down
   attackPressed: boolean;
+  magicPressed: boolean;
   restartPressed: boolean;
 }
 
-const KEY_MAP: Record<string, keyof Omit<InputState, "attackPressed" | "restartPressed">> = {
+const KEY_MAP: Record<
+  string,
+  keyof Omit<InputState, "attackPressed" | "magicPressed" | "restartPressed">
+> = {
   ArrowLeft: "left",
   KeyA: "left",
   ArrowRight: "right",
@@ -23,6 +28,8 @@ const KEY_MAP: Record<string, keyof Omit<InputState, "attackPressed" | "restartP
   KeyS: "down",
   Space: "attack",
   KeyJ: "attack",
+  KeyK: "magic",
+  KeyL: "magic",
 };
 
 export class Input {
@@ -32,11 +39,14 @@ export class Input {
     up: false,
     down: false,
     attack: false,
+    magic: false,
     attackPressed: false,
+    magicPressed: false,
     restartPressed: false,
   };
 
   private attackEdge = false;
+  private magicEdge = false;
   private restartEdge = false;
 
   private onKeyDown = (e: KeyboardEvent) => {
@@ -44,6 +54,7 @@ export class Input {
     if (action) {
       e.preventDefault();
       if (action === "attack" && !this.state.attack) this.attackEdge = true;
+      if (action === "magic" && !this.state.magic) this.magicEdge = true;
       this.state[action] = true;
     }
     if (e.code === "Enter" || e.code === "KeyR") {
@@ -74,9 +85,11 @@ export class Input {
     const snapshot: InputState = {
       ...this.state,
       attackPressed: this.attackEdge,
+      magicPressed: this.magicEdge,
       restartPressed: this.restartEdge,
     };
     this.attackEdge = false;
+    this.magicEdge = false;
     this.restartEdge = false;
     return snapshot;
   }

@@ -13,6 +13,7 @@ ready to deploy on **Vercel**.
 | ------- | ----------------------------- |
 | Move    | `W` `A` `S` `D` or arrow keys |
 | Attack  | `Space` or `J`                |
+| Magic   | `K` or `L` (costs mana)       |
 | Restart | `R` (on the win/lose screen)  |
 
 Clear every enemy and reach the gate at the end of the level to win.
@@ -86,5 +87,10 @@ gameplay speed is identical on 60Hz and 120Hz (ProMotion) displays.
       are placed to always leave a clear lane (verified completable by the
       playthrough sims).
 
-Ideas for later: health/score pickups, multiple enemy types, a boss at the gate,
-combo attacks, and sound.
+- [x] **Pickups & magic:** the player has **mana** and a **magic special** (`K`/`L`)
+      — an area burst that costs mana. Pickups dot the level and drop from some
+      slain grunts: **health** (restore HP), **mana** (restore mana), and **power**
+      (permanently raise sword damage for the run). See `src/game/pickups.ts`.
+
+Ideas for later: multiple enemy types, a boss at the gate, combo attacks, score,
+and sound.

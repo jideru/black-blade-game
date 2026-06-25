@@ -7,6 +7,7 @@ interface Props {
 
 export function Hud({ hud, onRestart }: Props) {
   const hpPct = Math.max(0, (hud.playerHp / hud.playerMaxHp) * 100);
+  const manaPct = Math.max(0, (hud.playerMana / hud.playerMaxMana) * 100);
 
   return (
     <div className="hud">
@@ -16,6 +17,13 @@ export function Hud({ hud, onRestart }: Props) {
           <div className="hp-bar">
             <div className="hp-fill" style={{ width: `${hpPct}%` }} />
           </div>
+          <div className="mana-bar">
+            <div className="mana-fill" style={{ width: `${manaPct}%` }} />
+          </div>
+        </div>
+        <div className="hud-panel hud-right">
+          <div className="hud-label">PWR</div>
+          <div className="hud-value">{Math.round(hud.attackDamage)}</div>
         </div>
         <div className="hud-panel hud-right">
           <div className="hud-label">ENEMIES</div>

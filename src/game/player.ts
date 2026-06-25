@@ -1,6 +1,7 @@
 import {
   COLLISION_RADIUS_FACTOR,
   LEVEL_END_X,
+  MANA_REGEN,
   PLAYER_ATTACK_COOLDOWN,
   PLAYER_ATTACK_DURATION,
   PLAYER_SPEED,
@@ -13,8 +14,14 @@ export function updatePlayer(player: Character, input: InputState, obstacles: Ob
   // Tick timers.
   if (player.attackTimer > 0) player.attackTimer--;
   if (player.attackCooldown > 0) player.attackCooldown--;
+  if (player.magicCooldown > 0) player.magicCooldown--;
   if (player.hurtTimer > 0) player.hurtTimer--;
   if (player.invulnTimer > 0) player.invulnTimer--;
+
+  // Mana slowly regenerates; pickups top it up faster.
+  if (player.mana < player.maxMana) {
+    player.mana = Math.min(player.maxMana, player.mana + MANA_REGEN);
+  }
 
   const attacking = player.attackTimer > 0;
 

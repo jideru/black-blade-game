@@ -111,6 +111,20 @@
   transition: width 0.12s linear;
 }
 
+.mana-bar {
+  margin-top: 3px;
+  height: 9px;
+  background: #14203a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mana-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #5aa0ff, #2a5ad0);
+  transition: width 0.12s linear;
+}
+
 .progress {
   position: absolute;
   bottom: 12px;

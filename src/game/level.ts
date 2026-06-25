@@ -4,8 +4,10 @@ import {
   ENEMY_MAX_HP,
   FLOOR_BOTTOM,
   FLOOR_TOP,
+  PLAYER_ATTACK_DAMAGE,
   PLAYER_ATTACK_DURATION,
   PLAYER_MAX_HP,
+  PLAYER_MAX_MANA,
 } from "./constants";
 import type { Character, Enemy } from "./types";
 
@@ -21,6 +23,10 @@ export function createPlayer(): Character {
     hp: PLAYER_MAX_HP,
     maxHp: PLAYER_MAX_HP,
     state: "idle",
+    mana: PLAYER_MAX_MANA,
+    maxMana: PLAYER_MAX_MANA,
+    attackDamage: PLAYER_ATTACK_DAMAGE,
+    magicCooldown: 0,
     attackTimer: 0,
     attackCooldown: 0,
     attackDuration: PLAYER_ATTACK_DURATION,
@@ -47,6 +53,10 @@ function makeEnemy(x: number, y: number): Enemy {
     hp: ENEMY_MAX_HP,
     maxHp: ENEMY_MAX_HP,
     state: "idle",
+    mana: 0,
+    maxMana: 0,
+    attackDamage: 0,
+    magicCooldown: 0,
     attackTimer: 0,
     attackCooldown: 0,
     attackDuration: ENEMY_ATTACK_DURATION,

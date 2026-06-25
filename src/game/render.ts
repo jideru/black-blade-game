@@ -8,8 +8,9 @@ import {
   VIEW_WIDTH,
   WORLD_WIDTH,
 } from "./constants";
+import { MAGIC_RADIUS } from "./constants";
 import { backEdgeY, type Obstacle } from "./terrain";
-import type { Character, Enemy, GameState } from "./types";
+import type { Character, Enemy, GameState, Pickup } from "./types";
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
@@ -47,7 +48,8 @@ const ENEMY_COLORS: KnightColors = {
 type Drawable =
   | { y: number; sort: number; kind: "player"; ref: Character }
   | { y: number; sort: number; kind: "enemy"; ref: Enemy }
-  | { y: number; sort: number; kind: "obstacle"; ref: Obstacle };
+  | { y: number; sort: number; kind: "obstacle"; ref: Obstacle }
+  | { y: number; sort: number; kind: "pickup"; ref: Pickup };
 
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.clearRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
@@ -59,6 +61,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
     { y: state.player.y, sort: state.player.y, kind: "player", ref: state.player },
     ...state.enemies.map((e): Drawable => ({ y: e.y, sort: e.y, kind: "enemy", ref: e })),
     ...state.obstacles.map((o): Drawable => ({ y: o.y, sort: o.y, kind: "obstacle", ref: o })),
+    ...state.pickups.map((pk): Drawable => ({ y: pk.y, sort: pk.y, kind: "pickup", ref: pk })),
   ];
   drawables.sort((a, b) => a.sort - b.sort);
 
@@ -70,10 +73,89 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
     } else if (d.kind === "enemy") {
       drawKnight(ctx, d.ref, screenX, ENEMY_COLORS, d.ref.flashTimer > 0);
       if (d.ref.state !== "dead") drawEnemyHealthBar(ctx, d.ref, screenX);
-    } else {
+    } else if (d.kind === "obstacle") {
       drawObstacle(ctx, d.ref, screenX);
+    } else {
+      drawPickup(ctx, d.ref, screenX);
     }
   }
+
+  // The magic burst draws on top of everything, in world space.
+  if (state.magicFx) drawMagicFx(ctx, state.magicFx, state.camX);
+}
+
+const PICKUP_STYLE: Record<Pickup["kind"], { fill: string; glow: string; glyph: string }> = {
+  health: { fill: "#e0473b", glow: "#ff8a7a", glyph: "+" },
+  mana: { fill: "#3f7bd6", glow: "#8ab6ff", glyph: "✦" },
+  power: { fill: "#d7a52f", glow: "#ffe08a", glyph: "⚔" },
+};
+
+function drawPickup(ctx: CanvasRenderingContext2D, pk: Pickup, screenX: number) {
+  const style = PICKUP_STYLE[pk.kind];
+  const scale = depthScale(pk.y);
+  const bob = Math.sin(pk.phase + performance.now() * 0.004) * 4;
+  ctx.save();
+  ctx.translate(screenX, pk.y);
+  ctx.scale(scale, scale);
+
+  // Ground shadow.
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 12, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const cy = -22 + bob;
+  // Glow.
+  const glow = ctx.createRadialGradient(0, cy, 2, 0, cy, 18);
+  glow.addColorStop(0, style.glow);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, cy, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Gem/orb body.
+  ctx.fillStyle = style.fill;
+  ctx.strokeStyle = "rgba(255,255,255,0.7)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, cy, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Glyph.
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 12px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(style.glyph, 0, cy + 1);
+  ctx.restore();
+}
+
+function drawMagicFx(ctx: CanvasRenderingContext2D, fx: GameState["magicFx"], camX: number) {
+  if (!fx) return;
+  const t = 1 - fx.timer / fx.maxTimer; // 0 -> 1
+  const radius = MAGIC_RADIUS * (0.3 + 0.7 * t);
+  const sx = fx.x - camX;
+  ctx.save();
+  ctx.globalAlpha = (1 - t) * 0.8;
+  // Expanding shockwave ring.
+  ctx.strokeStyle = "#8ab6ff";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.ellipse(sx, fx.y - 18, radius, radius * 0.6, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // Inner flash.
+  const flash = ctx.createRadialGradient(sx, fx.y - 18, 4, sx, fx.y - 18, radius);
+  flash.addColorStop(0, "rgba(200,225,255,0.6)");
+  flash.addColorStop(1, "rgba(120,160,255,0)");
+  ctx.fillStyle = flash;
+  ctx.beginPath();
+  ctx.ellipse(sx, fx.y - 18, radius, radius * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, camX: number) {

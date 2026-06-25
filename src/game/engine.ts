@@ -3,6 +3,7 @@ import {
   ENEMY_ATTACK_DAMAGE,
   ENEMY_ATTACK_DEPTH,
   ENEMY_ATTACK_REACH,
+  ENEMY_DROP_CHANCE,
   ENEMY_HURT_FLASH,
   ENEMY_HURT_STUN,
   ENEMY_KNOCKBACK,
@@ -10,7 +11,12 @@ import {
   HURT_INVULN,
   KNOCKBACK,
   LEVEL_END_X,
-  PLAYER_ATTACK_DAMAGE,
+  MAGIC_COST,
+  MAGIC_DAMAGE,
+  MAGIC_FX_DURATION,
+  MAGIC_RADIUS,
+  MAGIC_COOLDOWN,
+  PICKUP_RADIUS,
   PLAYER_ATTACK_DEPTH,
   PLAYER_ATTACK_DURATION,
   PLAYER_ATTACK_REACH,
@@ -21,10 +27,11 @@ import {
 import { updateEnemy } from "./enemy";
 import { Input } from "./input";
 import { createEnemies, createPlayer } from "./level";
+import { applyPickup, createPickups, dropPickup } from "./pickups";
 import { updatePlayer } from "./player";
 import { render } from "./render";
 import { createObstacles, hazardAt } from "./terrain";
-import type { GameState } from "./types";
+import type { Enemy, GameState, Pickup, PickupKind } from "./types";
 
 export type HudListener = (hud: GameState["hud"]) => void;
 
@@ -43,6 +50,7 @@ export class GameEngine {
   // Edge-triggered presses persist until a sim step consumes them, so a press
   // landing on a frame that runs zero steps (e.g. at 120Hz) is never dropped.
   private pendingAttack = false;
+  private pendingMagic = false;
   private pendingRestart = false;
 
   constructor(canvas: HTMLCanvasElement, onHud: HudListener) {
@@ -59,11 +67,16 @@ export class GameEngine {
       player,
       enemies: createEnemies(),
       obstacles: createObstacles(),
+      pickups: createPickups(),
+      magicFx: null,
       camX: 0,
       phase: "playing",
       hud: {
         playerHp: player.hp,
         playerMaxHp: player.maxHp,
+        playerMana: player.mana,
+        playerMaxMana: player.maxMana,
+        attackDamage: player.attackDamage,
         enemiesRemaining: 0,
         progress: 0,
         phase: "playing",
@@ -88,6 +101,7 @@ export class GameEngine {
 
       const input = this.input.poll();
       if (input.attackPressed) this.pendingAttack = true;
+      if (input.magicPressed) this.pendingMagic = true;
       if (input.restartPressed) this.pendingRestart = true;
 
       let stepsThisFrame = 0;
@@ -96,10 +110,12 @@ export class GameEngine {
         this.step({
           ...input,
           attackPressed: useEdge && this.pendingAttack,
+          magicPressed: useEdge && this.pendingMagic,
           restartPressed: useEdge && this.pendingRestart,
         });
         if (useEdge) {
           this.pendingAttack = false;
+          this.pendingMagic = false;
           this.pendingRestart = false;
         }
         this.accumulator -= FIXED;
@@ -128,6 +144,17 @@ export class GameEngine {
 
     updatePlayer(s.player, input, s.obstacles);
 
+    // Cast the magic special if requested and affordable.
+    if (
+      input.magicPressed &&
+      s.player.magicCooldown === 0 &&
+      s.player.mana >= MAGIC_COST &&
+      s.player.attackTimer === 0
+    ) {
+      this.castMagic();
+    }
+    if (s.magicFx && --s.magicFx.timer <= 0) s.magicFx = null;
+
     // Resolve the player's sword against enemies during the active swing.
     const swinging = s.player.attackTimer > 0;
     const inHitWindow =
@@ -141,6 +168,8 @@ export class GameEngine {
         this.damagePlayer(HAZARD_DAMAGE, s.player.facing);
       }
     }
+
+    this.collectPickups();
 
     for (const e of s.enemies) updateEnemy(e, s.player, s.enemies, s.obstacles);
 
@@ -176,20 +205,21 @@ export class GameEngine {
       const withinX = e.x + e.w / 2 >= minX && e.x - e.w / 2 <= maxX;
       const withinDepth = Math.abs(e.y - p.y) <= PLAYER_ATTACK_DEPTH;
       if (withinX && withinDepth) {
-        this.damageEnemy(e, front);
+        this.damageEnemy(e, front, p.attackDamage);
         p.hasHitThisSwing = true;
       }
     }
   }
 
-  private damageEnemy(e: GameState["enemies"][number], dir: number) {
-    e.hp -= PLAYER_ATTACK_DAMAGE;
+  private damageEnemy(e: Enemy, dir: number, amount: number) {
+    e.hp -= amount;
     e.flashTimer = ENEMY_HURT_FLASH;
     if (e.hp <= 0) {
       e.hp = 0;
       e.state = "dead";
       e.vx = 0;
       e.vy = 0;
+      this.maybeDrop(e);
       return;
     }
     // Hyperarmor: a grunt already mid-swing shrugs off the hit and lands its
@@ -199,6 +229,44 @@ export class GameEngine {
       e.hurtTimer = ENEMY_HURT_STUN;
       e.vx = dir * ENEMY_KNOCKBACK;
     }
+  }
+
+  // Some slain grunts drop a pickup where they fell.
+  private maybeDrop(e: Enemy) {
+    if (Math.random() > ENEMY_DROP_CHANCE) return;
+    const roll = Math.random();
+    const kind: PickupKind = roll < 0.5 ? "health" : roll < 0.85 ? "mana" : "power";
+    this.state.pickups.push(dropPickup(e.x, e.y, kind));
+  }
+
+  private castMagic() {
+    const s = this.state;
+    const p = s.player;
+    p.mana -= MAGIC_COST;
+    p.magicCooldown = MAGIC_COOLDOWN;
+    s.magicFx = { x: p.x, y: p.y, timer: MAGIC_FX_DURATION, maxTimer: MAGIC_FX_DURATION };
+    // Damage every living grunt within the burst radius (depth counted lightly).
+    for (const e of s.enemies) {
+      if (e.state === "dead") continue;
+      const dx = e.x - p.x;
+      const dy = (e.y - p.y) * 1.4;
+      if (dx * dx + dy * dy <= MAGIC_RADIUS * MAGIC_RADIUS) {
+        this.damageEnemy(e, Math.sign(dx) || 1, MAGIC_DAMAGE);
+      }
+    }
+  }
+
+  private collectPickups() {
+    const s = this.state;
+    const p = s.player;
+    const reach = PICKUP_RADIUS + p.w * 0.4;
+    s.pickups = s.pickups.filter((pk: Pickup) => {
+      const dx = pk.x - p.x;
+      const dy = pk.y - p.y;
+      if (dx * dx + dy * dy > reach * reach) return true; // keep, not collected
+      applyPickup(p, pk.kind);
+      return false; // collected -> remove
+    });
   }
 
   private resolveEnemyAttack(e: GameState["enemies"][number]) {
@@ -231,6 +299,8 @@ export class GameEngine {
   private updateHud(aliveEnemies: number) {
     const s = this.state;
     s.hud.playerHp = s.player.hp;
+    s.hud.playerMana = s.player.mana;
+    s.hud.attackDamage = s.player.attackDamage;
     s.hud.enemiesRemaining = aliveEnemies;
     s.hud.progress = Math.max(0, Math.min(1, s.player.x / LEVEL_END_X));
     s.hud.phase = s.phase;

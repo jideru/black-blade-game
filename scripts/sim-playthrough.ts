@@ -13,7 +13,10 @@ import {
   HURT_INVULN,
   KNOCKBACK,
   LEVEL_END_X,
-  PLAYER_ATTACK_DAMAGE,
+  MAGIC_COOLDOWN,
+  MAGIC_COST,
+  MAGIC_DAMAGE,
+  MAGIC_RADIUS,
   PLAYER_ATTACK_DEPTH,
   PLAYER_ATTACK_DURATION,
   PLAYER_ATTACK_REACH,
@@ -40,8 +43,8 @@ interface Sim {
 }
 
 // --- engine combat logic, mirrored from src/game/engine.ts ---
-function damageEnemy(e: Enemy, dir: number) {
-  e.hp -= PLAYER_ATTACK_DAMAGE;
+function damageEnemy(e: Enemy, dir: number, amount: number) {
+  e.hp -= amount;
   e.flashTimer = ENEMY_HURT_FLASH;
   if (e.hp <= 0) {
     e.hp = 0;
@@ -67,7 +70,7 @@ function resolvePlayerAttack(s: Sim) {
     const withinX = e.x + e.w / 2 >= minX && e.x - e.w / 2 <= maxX;
     const withinDepth = Math.abs(e.y - p.y) <= PLAYER_ATTACK_DEPTH;
     if (withinX && withinDepth) {
-      damageEnemy(e, front);
+      damageEnemy(e, front, p.attackDamage);
       p.hasHitThisSwing = true;
     }
   }
@@ -92,9 +95,32 @@ function resolveEnemyAttack(e: Enemy, p: Character) {
   }
 }
 
+// Mirror of GameEngine.castMagic — area burst around the player.
+function castMagic(s: Sim) {
+  const p = s.player;
+  p.mana -= MAGIC_COST;
+  p.magicCooldown = MAGIC_COOLDOWN;
+  for (const e of s.enemies) {
+    if (e.state === "dead") continue;
+    const dx = e.x - p.x;
+    const dy = (e.y - p.y) * 1.4;
+    if (dx * dx + dy * dy <= MAGIC_RADIUS * MAGIC_RADIUS) {
+      damageEnemy(e, Math.sign(dx) || 1, MAGIC_DAMAGE);
+    }
+  }
+}
+
 function step(s: Sim, input: InputState) {
   if (s.phase !== "playing") return;
   updatePlayer(s.player, input, s.obstacles);
+  if (
+    input.magicPressed &&
+    s.player.magicCooldown === 0 &&
+    s.player.mana >= MAGIC_COST &&
+    s.player.attackTimer === 0
+  ) {
+    castMagic(s);
+  }
   const swinging = s.player.attackTimer > 0;
   if (swinging && s.player.attackTimer < PLAYER_ATTACK_DURATION - 3 && !s.player.hasHitThisSwing) {
     resolvePlayerAttack(s);
@@ -120,6 +146,7 @@ interface BotConfig {
   attacks: boolean; // whether it ever swings
   reactionDelay?: number; // frames between attack decisions (0 = frame-perfect)
   alignDepth?: boolean; // whether it lines up depth before swinging (default true)
+  useMagic?: boolean; // cast the magic special when it can
 }
 
 function botInput(
@@ -134,7 +161,9 @@ function botInput(
     up: false,
     down: false,
     attack: false,
+    magic: false,
     attackPressed: false,
+    magicPressed: false,
     restartPressed: false,
   };
   // Nearest living enemy that is roughly ahead/near.
@@ -167,6 +196,12 @@ function botInput(
     input.attackPressed = want && !mem.prevWant;
     if (input.attackPressed) mem.cooldown = cfg.reactionDelay ?? 0;
     mem.prevWant = want;
+
+    // Blast with magic when affordable and a target is inside the radius.
+    if (cfg.useMagic && p.magicCooldown === 0 && p.mana >= MAGIC_COST) {
+      const inBlast = Math.hypot(dx, dy * 1.4) <= MAGIC_RADIUS;
+      if (inBlast) input.magicPressed = true;
+    }
   } else {
     input.right = true; // head for the gate
     mem.prevWant = false;
@@ -238,5 +273,6 @@ run({ name: "Cautious (perfect)", engageDist: 52, attacks: true });
 // Realistic imperfect player: slow reactions (slower than the attack cooldown)
 // but does aim and reposition.
 run({ name: "Human-ish (slow)", engageDist: 44, attacks: true, reactionDelay: 40 });
+run({ name: "Mage (sword+magic)", engageDist: 38, attacks: true, useMagic: true });
 run({ name: "Pacifist (no attacks)", engageDist: 38, attacks: false });
 console.log("\nDone.");

@@ -5,9 +5,13 @@ import {
   ENEMY_ATTACK_DEPTH,
   ENEMY_ATTACK_REACH,
   HURT_INVULN,
+  PICKUP_HEALTH,
+  PICKUP_MANA,
+  PICKUP_POWER,
 } from "../src/game/constants";
 import { updateEnemy } from "../src/game/enemy";
 import { createEnemies, createPlayer } from "../src/game/level";
+import { applyPickup } from "../src/game/pickups";
 import type { Character, Enemy } from "../src/game/types";
 
 let failures = 0;
@@ -125,5 +129,25 @@ console.log("Test 5: overlapping grunts separate while chasing");
   assert(gap > 5, `grunts unstick from the same pixel (gap ${gap.toFixed(1)}px)`);
 }
 
-console.log(failures === 0 ? "\nAll AI checks passed ✓" : `\n${failures} check(s) FAILED ✗`);
+console.log("Test 6: pickups apply their effects (and clamp to max)");
+{
+  const p = createPlayer();
+  p.hp = 40;
+  applyPickup(p, "health");
+  assert(p.hp === Math.min(p.maxHp, 40 + PICKUP_HEALTH), "health pickup restores HP");
+
+  p.hp = p.maxHp - 5;
+  applyPickup(p, "health");
+  assert(p.hp === p.maxHp, "health pickup never exceeds max HP");
+
+  p.mana = 10;
+  applyPickup(p, "mana");
+  assert(p.mana === Math.min(p.maxMana, 10 + PICKUP_MANA), "mana pickup restores mana");
+
+  const before = p.attackDamage;
+  applyPickup(p, "power");
+  assert(p.attackDamage === before + PICKUP_POWER, "power pickup raises sword damage");
+}
+
+console.log(failures === 0 ? "\nAll checks passed ✓" : `\n${failures} check(s) FAILED ✗`);
 process.exit(failures === 0 ? 0 : 1);
