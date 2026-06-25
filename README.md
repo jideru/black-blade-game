@@ -24,11 +24,22 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # type-check + production build to dist/
 npm run preview  # preview the production build
-npm test         # headless simulation tests for the game logic
+npm test         # headless unit checks for the game logic
+npm run sim      # headless playthrough sims (scripted bots play the level)
 ```
 
 The game logic in `src/game/` is pure and DOM-free, so the AI/combat rules are
-verified headlessly in `scripts/sim-test.ts` without a browser.
+verified headlessly without a browser: `scripts/sim-test.ts` unit-checks the AI,
+and `scripts/sim-playthrough.ts` runs scripted bots through the whole level to
+sanity-check balance.
+
+### Combat feel
+
+A grunt that has committed to a swing has **hyperarmor** — hits no longer
+interrupt it, so trading blows is a real risk. Hits only stagger a grunt that is
+still approaching. The result (per `npm run sim`): a frame-perfect player can
+clear the level untouched, sloppy play survives on a sliver of health, and
+refusing to fight gets you killed.
 
 ## Deploy to Vercel
 

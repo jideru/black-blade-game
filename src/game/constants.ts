@@ -22,12 +22,13 @@ export const PLAYER_ATTACK_COOLDOWN = 10; // frames before you can swing again
 export const PLAYER_ATTACK_REACH = 64; // how far in front the hitbox extends
 export const PLAYER_ATTACK_DEPTH = 40; // depth tolerance for a hit
 export const HURT_INVULN = 28; // frames of invulnerability after taking a hit
-export const KNOCKBACK = 7;
+export const KNOCKBACK = 7; // knockback applied to the player when hit
 
 // Enemy tuning
 export const ENEMY_MAX_HP = 50;
 export const ENEMY_HURT_FLASH = 12;
-export const ENEMY_HURT_STUN = 18; // frames frozen after taking a hit
+export const ENEMY_HURT_STUN = 12; // frames frozen after a hit (when not committed)
+export const ENEMY_KNOCKBACK = 3; // gentle shove so grunts stay in the fight
 
 // Enemy AI (step 3)
 export const ENEMY_SPEED = 1.7;

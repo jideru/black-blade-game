@@ -4,6 +4,7 @@ import {
   ENEMY_ATTACK_REACH,
   ENEMY_HURT_FLASH,
   ENEMY_HURT_STUN,
+  ENEMY_KNOCKBACK,
   HURT_INVULN,
   KNOCKBACK,
   LEVEL_END_X,
@@ -172,14 +173,19 @@ export class GameEngine {
   private damageEnemy(e: GameState["enemies"][number], dir: number) {
     e.hp -= PLAYER_ATTACK_DAMAGE;
     e.flashTimer = ENEMY_HURT_FLASH;
-    e.hurtTimer = ENEMY_HURT_STUN; // stun interrupts any swing in progress
-    e.attackTimer = 0;
-    e.vx = dir * KNOCKBACK;
     if (e.hp <= 0) {
       e.hp = 0;
       e.state = "dead";
       e.vx = 0;
       e.vy = 0;
+      return;
+    }
+    // Hyperarmor: a grunt already mid-swing shrugs off the hit and lands its
+    // blow anyway, so trading damage is a real risk. Hits only stun/knock back
+    // a grunt that is approaching, not one that has committed to an attack.
+    if (e.attackTimer === 0) {
+      e.hurtTimer = ENEMY_HURT_STUN;
+      e.vx = dir * ENEMY_KNOCKBACK;
     }
   }
 
