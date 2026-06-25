@@ -27,6 +27,19 @@ export const KNOCKBACK = 7;
 // Enemy tuning
 export const ENEMY_MAX_HP = 50;
 export const ENEMY_HURT_FLASH = 12;
+export const ENEMY_HURT_STUN = 18; // frames frozen after taking a hit
+
+// Enemy AI (step 3)
+export const ENEMY_SPEED = 1.7;
+export const ENEMY_AGGRO_RANGE = 360; // starts chasing when player is this close (x)
+export const ENEMY_ATTACK_RANGE = 54; // x distance at which it commits to a swing
+export const ENEMY_ATTACK_DEPTH = 34; // depth tolerance for chasing/attacking
+export const ENEMY_SEPARATION = 34; // grunts keep at least this far apart
+export const ENEMY_ATTACK_WINDUP = 16; // telegraph frames before the blade lands
+export const ENEMY_ATTACK_DURATION = 34; // total swing length (windup + follow-through)
+export const ENEMY_ATTACK_COOLDOWN = 40; // frames before it can swing again
+export const ENEMY_ATTACK_DAMAGE = 10;
+export const ENEMY_ATTACK_REACH = 56;
 
 // Depth scaling: characters near the camera (bigger y) appear slightly larger.
 export const DEPTH_SCALE_MIN = 0.85;

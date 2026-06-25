@@ -16,6 +16,8 @@ export interface Character {
   // timers (counted down each frame)
   attackTimer: number;
   attackCooldown: number;
+  attackDuration: number; // total length of a swing (for animation timing)
+  attackWindup: number; // telegraph frames before the blade lands
   hasHitThisSwing: boolean; // ensures one attack damages a target once
   hurtTimer: number;
   invulnTimer: number;

@@ -1,4 +1,12 @@
-import { ENEMY_MAX_HP, FLOOR_BOTTOM, FLOOR_TOP, PLAYER_MAX_HP } from "./constants";
+import {
+  ENEMY_ATTACK_DURATION,
+  ENEMY_ATTACK_WINDUP,
+  ENEMY_MAX_HP,
+  FLOOR_BOTTOM,
+  FLOOR_TOP,
+  PLAYER_ATTACK_DURATION,
+  PLAYER_MAX_HP,
+} from "./constants";
 import type { Character, Enemy } from "./types";
 
 export function createPlayer(): Character {
@@ -15,6 +23,8 @@ export function createPlayer(): Character {
     state: "idle",
     attackTimer: 0,
     attackCooldown: 0,
+    attackDuration: PLAYER_ATTACK_DURATION,
+    attackWindup: 3,
     hasHitThisSwing: false,
     hurtTimer: 0,
     invulnTimer: 0,
@@ -39,6 +49,8 @@ function makeEnemy(x: number, y: number): Enemy {
     state: "idle",
     attackTimer: 0,
     attackCooldown: 0,
+    attackDuration: ENEMY_ATTACK_DURATION,
+    attackWindup: ENEMY_ATTACK_WINDUP,
     hasHitThisSwing: false,
     hurtTimer: 0,
     invulnTimer: 0,

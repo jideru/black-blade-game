@@ -183,6 +183,11 @@ function drawKnight(
   ctx.scale(scale, scale);
   if (c.facing === -1) ctx.scale(-1, 1);
 
+  // Blink while invulnerable (after taking a hit).
+  if (c.invulnTimer > 0 && Math.floor(c.invulnTimer / 3) % 2 === 0) {
+    ctx.globalAlpha = 0.35;
+  }
+
   // Shadow
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.beginPath();
@@ -264,9 +269,16 @@ function drawSword(
   const armY = c.h * -0.55 + bob;
   let swing = -0.5; // resting angle (blade up)
   if (c.state === "attack") {
-    // Progress 0..1 across the swing, blade sweeps from up to forward.
-    const p = 1 - c.attackTimer / 18;
-    swing = lerp(-1.4, 0.9, Math.min(1, p * 1.4));
+    const elapsed = c.attackDuration - c.attackTimer;
+    if (elapsed < c.attackWindup) {
+      // Windup: rear the blade back as a telegraph.
+      const t = elapsed / Math.max(1, c.attackWindup);
+      swing = lerp(-0.5, -1.7, t);
+    } else {
+      // Follow-through: sweep the blade down and forward.
+      const p = (elapsed - c.attackWindup) / Math.max(1, c.attackDuration - c.attackWindup);
+      swing = lerp(-1.7, 0.9, Math.min(1, p));
+    }
   }
 
   ctx.save();

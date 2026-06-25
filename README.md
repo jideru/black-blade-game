@@ -24,7 +24,11 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # type-check + production build to dist/
 npm run preview  # preview the production build
+npm test         # headless simulation tests for the game logic
 ```
+
+The game logic in `src/game/` is pure and DOM-free, so the AI/combat rules are
+verified headlessly in `scripts/sim-test.ts` without a browser.
 
 ## Deploy to Vercel
 
@@ -43,7 +47,7 @@ the canvas and renders the HUD overlay.
 | --------------------- | -------------------------------------------------------- |
 | `game/engine.ts`      | Fixed-timestep game loop, combat resolution, camera, HUD |
 | `game/player.ts`      | Player movement + attack state machine                   |
-| `game/enemy.ts`       | Enemy behaviour (currently passive — see roadmap)        |
+| `game/enemy.ts`       | Enemy AI: aggro, chase, separation, telegraphed attack   |
 | `game/input.ts`       | Keyboard → logical actions (held + edge-triggered)       |
 | `game/render.ts`      | Canvas drawing: parallax background + characters         |
 | `game/level.ts`       | Player/enemy factories and enemy spawn placement         |
@@ -60,8 +64,10 @@ gameplay speed is identical on 60Hz and 120Hz (ProMotion) displays.
       4-direction movement (incl. moving back), and a start-to-end goal.
 - [x] **Step 2 — A weak enemy:** grunts that can be attacked and killed but do
       not fight back yet.
-- [ ] **Step 3 — Enemy AI:** grunts chase the player and attack, dealing damage.
+- [x] **Step 3 — Enemy AI:** grunts aggro within range, chase the player (fanning
+      into depth lanes instead of stacking), and commit telegraphed attacks that
+      deal damage. Getting hit interrupts a grunt's swing; the player gets
+      invulnerability frames and a knockback. Lose when HP hits zero.
 
-Step 3 hooks are already stubbed in `game/enemy.ts` (`updateEnemy` receives the
-player) and the engine already supports damaging the player (HP, invulnerability
-frames, and the lose condition are wired up).
+Ideas for later: health/score pickups, multiple enemy types, a boss at the gate,
+combo attacks, and sound.

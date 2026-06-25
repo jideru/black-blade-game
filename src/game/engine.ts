@@ -1,5 +1,10 @@
 import {
+  ENEMY_ATTACK_DAMAGE,
+  ENEMY_ATTACK_DEPTH,
+  ENEMY_ATTACK_REACH,
   ENEMY_HURT_FLASH,
+  ENEMY_HURT_STUN,
+  HURT_INVULN,
   KNOCKBACK,
   LEVEL_END_X,
   PLAYER_ATTACK_DAMAGE,
@@ -124,7 +129,10 @@ export class GameEngine {
       swinging && s.player.attackTimer < PLAYER_ATTACK_DURATION - 3 && !s.player.hasHitThisSwing;
     if (inHitWindow) this.resolvePlayerAttack();
 
-    for (const e of s.enemies) updateEnemy(e, s.player);
+    for (const e of s.enemies) updateEnemy(e, s.player, s.enemies);
+
+    // Resolve enemy swings against the player at each swing's hit frame.
+    for (const e of s.enemies) this.resolveEnemyAttack(e);
 
     // Update camera to follow the player, clamped to the world.
     const targetCam = s.player.x - VIEW_WIDTH / 2;
@@ -164,13 +172,42 @@ export class GameEngine {
   private damageEnemy(e: GameState["enemies"][number], dir: number) {
     e.hp -= PLAYER_ATTACK_DAMAGE;
     e.flashTimer = ENEMY_HURT_FLASH;
-    e.hurtTimer = ENEMY_HURT_FLASH;
+    e.hurtTimer = ENEMY_HURT_STUN; // stun interrupts any swing in progress
+    e.attackTimer = 0;
     e.vx = dir * KNOCKBACK;
     if (e.hp <= 0) {
       e.hp = 0;
       e.state = "dead";
       e.vx = 0;
+      e.vy = 0;
     }
+  }
+
+  private resolveEnemyAttack(e: GameState["enemies"][number]) {
+    if (e.state !== "attack" || e.hasHitThisSwing) return;
+    // The blade lands once the windup has elapsed.
+    const elapsed = e.attackDuration - e.attackTimer;
+    if (elapsed < e.attackWindup) return;
+
+    e.hasHitThisSwing = true; // consume the swing whether or not it connects
+
+    const p = this.state.player;
+    if (p.invulnTimer > 0) return;
+    const front = e.facing;
+    const minX = front === 1 ? e.x : e.x - ENEMY_ATTACK_REACH;
+    const maxX = front === 1 ? e.x + ENEMY_ATTACK_REACH : e.x;
+    const withinX = p.x + p.w / 2 >= minX && p.x - p.w / 2 <= maxX;
+    const withinDepth = Math.abs(p.y - e.y) <= ENEMY_ATTACK_DEPTH;
+    if (withinX && withinDepth) this.damagePlayer(ENEMY_ATTACK_DAMAGE, front);
+  }
+
+  private damagePlayer(amount: number, dir: number) {
+    const p = this.state.player;
+    p.hp = Math.max(0, p.hp - amount);
+    p.hurtTimer = HURT_INVULN;
+    p.invulnTimer = HURT_INVULN;
+    // Knock the player back, staying within the level bounds.
+    p.x = Math.max(40, Math.min(LEVEL_END_X, p.x + dir * KNOCKBACK));
   }
 
   private updateHud(aliveEnemies: number) {
