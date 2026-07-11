@@ -3,9 +3,7 @@
 // numbers reflect real gameplay. Run with: npx tsx scripts/sim-playthrough.ts
 import {
   COLLISION_RADIUS_FACTOR,
-  ENEMY_ATTACK_DAMAGE,
   ENEMY_ATTACK_DEPTH,
-  ENEMY_ATTACK_REACH,
   ENEMY_HURT_FLASH,
   ENEMY_HURT_STUN,
   ENEMY_KNOCKBACK,
@@ -17,6 +15,7 @@ import {
   MAGIC_COST,
   MAGIC_DAMAGE,
   MAGIC_RADIUS,
+  PICKUP_RADIUS,
   PLAYER_ATTACK_DEPTH,
   PLAYER_ATTACK_DURATION,
   PLAYER_ATTACK_REACH,
@@ -25,6 +24,7 @@ import {
 import { updateEnemy } from "../src/game/enemy";
 import type { InputState } from "../src/game/input";
 import { createEnemies, createPlayer } from "../src/game/level";
+import { applyPickup, createPickups } from "../src/game/pickups";
 import { updatePlayer } from "../src/game/player";
 import {
   blockedByObstacle,
@@ -33,13 +33,28 @@ import {
   hazardAt,
   type Obstacle,
 } from "../src/game/terrain";
-import type { Character, Enemy } from "../src/game/types";
+import type { Character, Enemy, Pickup } from "../src/game/types";
 
 interface Sim {
   player: Character;
   enemies: Enemy[];
   obstacles: Obstacle[];
+  pickups: Pickup[];
   phase: "playing" | "won" | "dead";
+}
+
+// Mirror of GameEngine.collectPickups (placed pickups only; drops are random
+// so they're left out to keep the sim deterministic).
+function collectPickups(s: Sim) {
+  const p = s.player;
+  const reach = PICKUP_RADIUS + p.w * 0.4;
+  s.pickups = s.pickups.filter((pk) => {
+    const dx = pk.x - p.x;
+    const dy = pk.y - p.y;
+    if (dx * dx + dy * dy > reach * reach) return true;
+    applyPickup(p, pk.kind);
+    return false;
+  });
 }
 
 // --- engine combat logic, mirrored from src/game/engine.ts ---
@@ -56,7 +71,7 @@ function damageEnemy(e: Enemy, dir: number, amount: number) {
   // Hyperarmor: a committed (mid-swing) grunt is not interrupted by a hit.
   if (e.attackTimer === 0) {
     e.hurtTimer = ENEMY_HURT_STUN;
-    e.vx = dir * ENEMY_KNOCKBACK;
+    e.vx = dir * ENEMY_KNOCKBACK * e.knockbackFactor;
   }
 }
 
@@ -83,12 +98,12 @@ function resolveEnemyAttack(e: Enemy, p: Character) {
   e.hasHitThisSwing = true;
   if (p.invulnTimer > 0) return;
   const front = e.facing;
-  const minX = front === 1 ? e.x : e.x - ENEMY_ATTACK_REACH;
-  const maxX = front === 1 ? e.x + ENEMY_ATTACK_REACH : e.x;
+  const minX = front === 1 ? e.x : e.x - e.attackReach;
+  const maxX = front === 1 ? e.x + e.attackReach : e.x;
   const withinX = p.x + p.w / 2 >= minX && p.x - p.w / 2 <= maxX;
   const withinDepth = Math.abs(p.y - e.y) <= ENEMY_ATTACK_DEPTH;
   if (withinX && withinDepth) {
-    p.hp = Math.max(0, p.hp - ENEMY_ATTACK_DAMAGE);
+    p.hp = Math.max(0, p.hp - e.attackDamage);
     p.hurtTimer = HURT_INVULN;
     p.invulnTimer = HURT_INVULN;
     p.x = Math.max(40, Math.min(LEVEL_END_X, p.x + front * KNOCKBACK));
@@ -132,6 +147,7 @@ function step(s: Sim, input: InputState) {
       s.player.invulnTimer = HURT_INVULN;
     }
   }
+  collectPickups(s);
   for (const e of s.enemies) updateEnemy(e, s.player, s.enemies, s.obstacles);
   for (const e of s.enemies) resolveEnemyAttack(e, s.player);
   const alive = s.enemies.filter((e) => e.state !== "dead").length;
@@ -246,6 +262,7 @@ function run(cfg: BotConfig) {
     player: createPlayer(),
     enemies: createEnemies(),
     obstacles: createObstacles(),
+    pickups: createPickups(),
     phase: "playing",
   };
   const mem = { prevWant: false, cooldown: 0, dodgeDir: 1, dodgeFrames: 0 };

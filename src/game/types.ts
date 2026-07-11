@@ -49,7 +49,14 @@ export interface MagicFx {
 
 export interface Enemy extends Character {
   id: number;
+  kind: import("./enemyTypes").EnemyKind;
   flashTimer: number; // white flash when hit
+  // Per-type stats read by the AI and combat code.
+  speed: number;
+  aggroRange: number;
+  attackRange: number; // x distance at which it commits to a swing
+  attackReach: number; // hitbox reach of its swing
+  knockbackFactor: number; // 1 = full knockback when hit, 0 = immovable
 }
 
 export type GamePhase = "playing" | "dead" | "won";

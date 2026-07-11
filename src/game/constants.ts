@@ -28,23 +28,14 @@ export const KNOCKBACK = 7; // knockback applied to the player when hit
 export const HAZARD_DAMAGE = 8; // damage per tick from standing in thorns
 export const COLLISION_RADIUS_FACTOR = 0.4; // body collision radius = w * this
 
-// Enemy tuning
-export const ENEMY_MAX_HP = 50;
+// Enemy tuning shared by all types. Per-type stats (hp, speed, damage, reach,
+// attack timing, knockback resistance) live in src/game/enemyTypes.ts.
 export const ENEMY_HURT_FLASH = 12;
 export const ENEMY_HURT_STUN = 12; // frames frozen after a hit (when not committed)
-export const ENEMY_KNOCKBACK = 3; // gentle shove so grunts stay in the fight
-
-// Enemy AI (step 3)
-export const ENEMY_SPEED = 1.7;
-export const ENEMY_AGGRO_RANGE = 360; // starts chasing when player is this close (x)
-export const ENEMY_ATTACK_RANGE = 54; // x distance at which it commits to a swing
+export const ENEMY_KNOCKBACK = 3; // base shove when hit (scaled by knockbackFactor)
 export const ENEMY_ATTACK_DEPTH = 34; // depth tolerance for chasing/attacking
 export const ENEMY_SEPARATION = 34; // grunts keep at least this far apart
-export const ENEMY_ATTACK_WINDUP = 16; // telegraph frames before the blade lands
-export const ENEMY_ATTACK_DURATION = 34; // total swing length (windup + follow-through)
-export const ENEMY_ATTACK_COOLDOWN = 40; // frames before it can swing again
-export const ENEMY_ATTACK_DAMAGE = 10;
-export const ENEMY_ATTACK_REACH = 56;
+export const ENEMY_ATTACK_COOLDOWN = 40; // recovery frames after a swing ends
 
 // Magic special (costs mana, area burst around the player)
 export const MAGIC_COST = 35;

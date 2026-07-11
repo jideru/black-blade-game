@@ -1,12 +1,8 @@
 import {
   COLLISION_RADIUS_FACTOR,
-  ENEMY_AGGRO_RANGE,
   ENEMY_ATTACK_COOLDOWN,
   ENEMY_ATTACK_DEPTH,
-  ENEMY_ATTACK_DURATION,
-  ENEMY_ATTACK_RANGE,
   ENEMY_SEPARATION,
-  ENEMY_SPEED,
 } from "./constants";
 import { blockedByObstacle, clampDepth, type Obstacle } from "./terrain";
 import type { Character, Enemy } from "./types";
@@ -67,9 +63,9 @@ export function updateEnemy(
   const ady = Math.abs(dy);
 
   // In range and ready: commit to a swing.
-  if (adx <= ENEMY_ATTACK_RANGE && ady <= ENEMY_ATTACK_DEPTH && enemy.attackCooldown === 0) {
-    enemy.attackTimer = ENEMY_ATTACK_DURATION;
-    enemy.attackCooldown = ENEMY_ATTACK_DURATION + ENEMY_ATTACK_COOLDOWN;
+  if (adx <= enemy.attackRange && ady <= ENEMY_ATTACK_DEPTH && enemy.attackCooldown === 0) {
+    enemy.attackTimer = enemy.attackDuration;
+    enemy.attackCooldown = enemy.attackDuration + ENEMY_ATTACK_COOLDOWN;
     enemy.hasHitThisSwing = false;
     enemy.state = "attack";
     enemy.vx = 0;
@@ -78,11 +74,11 @@ export function updateEnemy(
   }
 
   // Chase if the player is within aggro range.
-  if (adx <= ENEMY_AGGRO_RANGE) {
+  if (adx <= enemy.aggroRange) {
     let mvx = 0;
     let mvy = 0;
     // Close the gap, but stop nudging once inside attack distance.
-    if (adx > ENEMY_ATTACK_RANGE - 6) mvx = Math.sign(dx);
+    if (adx > enemy.attackRange - 6) mvx = Math.sign(dx);
     if (ady > ENEMY_ATTACK_DEPTH - 6) mvy = Math.sign(dy);
 
     // Separation: push away from nearby grunts so they fan out.
@@ -114,9 +110,9 @@ export function updateEnemy(
       vx /= len;
       vy /= len;
       const r = enemy.w * COLLISION_RADIUS_FACTOR;
-      const tryX = enemy.x + vx * ENEMY_SPEED;
+      const tryX = enemy.x + vx * enemy.speed;
       if (!blockedByObstacle(tryX, enemy.y, r, obstacles)) enemy.x = tryX;
-      const tryY = clampDepth(enemy.x, enemy.y + vy * ENEMY_SPEED);
+      const tryY = clampDepth(enemy.x, enemy.y + vy * enemy.speed);
       if (!blockedByObstacle(enemy.x, tryY, r, obstacles)) enemy.y = tryY;
       enemy.y = clampDepth(enemy.x, enemy.y);
       enemy.state = "walk";

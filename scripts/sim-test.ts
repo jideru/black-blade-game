@@ -1,9 +1,7 @@
 // Headless verification of the pure game logic (no DOM / canvas / rAF).
 // Run with: npx tsx scripts/sim-test.ts
 import {
-  ENEMY_ATTACK_DAMAGE,
   ENEMY_ATTACK_DEPTH,
-  ENEMY_ATTACK_REACH,
   HURT_INVULN,
   PICKUP_HEALTH,
   PICKUP_MANA,
@@ -33,14 +31,14 @@ function resolveEnemyAttack(e: Enemy, p: Character): number {
   e.hasHitThisSwing = true;
   if (p.invulnTimer > 0) return 0;
   const front = e.facing;
-  const minX = front === 1 ? e.x : e.x - ENEMY_ATTACK_REACH;
-  const maxX = front === 1 ? e.x + ENEMY_ATTACK_REACH : e.x;
+  const minX = front === 1 ? e.x : e.x - e.attackReach;
+  const maxX = front === 1 ? e.x + e.attackReach : e.x;
   const withinX = p.x + p.w / 2 >= minX && p.x - p.w / 2 <= maxX;
   const withinDepth = Math.abs(p.y - e.y) <= ENEMY_ATTACK_DEPTH;
   if (withinX && withinDepth) {
-    p.hp = Math.max(0, p.hp - ENEMY_ATTACK_DAMAGE);
+    p.hp = Math.max(0, p.hp - e.attackDamage);
     p.invulnTimer = HURT_INVULN;
-    return ENEMY_ATTACK_DAMAGE;
+    return e.attackDamage;
   }
   return 0;
 }

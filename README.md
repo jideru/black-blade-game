@@ -92,5 +92,9 @@ gameplay speed is identical on 60Hz and 120Hz (ProMotion) displays.
       slain grunts: **health** (restore HP), **mana** (restore mana), and **power**
       (permanently raise sword damage for the run). See `src/game/pickups.ts`.
 
-Ideas for later: multiple enemy types, a boss at the gate, combo attacks, score,
-and sound.
+- [x] **Multiple enemy types:** per-type stats live in `src/game/enemyTypes.ts`
+      and drive the shared AI — **grunts** (balanced fodder), **brutes** (slow,
+      tanky, hit hard, shrug off knockback), and **runners** (fast, fragile,
+      quick jabs). Waves mix types more aggressively deeper into the level.
+
+Ideas for later: a boss at the gate, combo attacks, score, and sound.

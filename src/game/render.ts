@@ -9,6 +9,7 @@ import {
   WORLD_WIDTH,
 } from "./constants";
 import { MAGIC_RADIUS } from "./constants";
+import { ENEMY_TYPES, type KnightColors } from "./enemyTypes";
 import { backEdgeY, type Obstacle } from "./terrain";
 import type { Character, Enemy, GameState, Pickup } from "./types";
 
@@ -21,28 +22,12 @@ function depthScale(y: number) {
   return lerp(DEPTH_SCALE_MIN, DEPTH_SCALE_MAX, Math.max(0, Math.min(1, t)));
 }
 
-interface KnightColors {
-  body: string;
-  bodyDark: string;
-  trim: string;
-  skin: string;
-  blade: string;
-}
-
 const PLAYER_COLORS: KnightColors = {
   body: "#2f6fb0",
   bodyDark: "#1d4a7a",
   trim: "#d7c14a",
   skin: "#e6b48c",
   blade: "#22202b",
-};
-
-const ENEMY_COLORS: KnightColors = {
-  body: "#5a8f3c",
-  bodyDark: "#3d6627",
-  trim: "#7a4a2a",
-  skin: "#8fbf5e",
-  blade: "#9a9a9a",
 };
 
 type Drawable =
@@ -71,7 +56,7 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
     if (d.kind === "player") {
       drawKnight(ctx, d.ref, screenX, PLAYER_COLORS, false);
     } else if (d.kind === "enemy") {
-      drawKnight(ctx, d.ref, screenX, ENEMY_COLORS, d.ref.flashTimer > 0);
+      drawKnight(ctx, d.ref, screenX, ENEMY_TYPES[d.ref.kind].colors, d.ref.flashTimer > 0);
       if (d.ref.state !== "dead") drawEnemyHealthBar(ctx, d.ref, screenX);
     } else if (d.kind === "obstacle") {
       drawObstacle(ctx, d.ref, screenX);
@@ -385,7 +370,9 @@ function drawKnight(
   colors: KnightColors,
   flash: boolean
 ) {
-  const scale = depthScale(c.y);
+  // Scale by depth and by body height relative to the player (h = 78), so
+  // brutes loom larger and runners are smaller.
+  const scale = depthScale(c.y) * (c.h / 78);
   const feetY = c.y;
   const dead = c.state === "dead";
 
@@ -424,7 +411,9 @@ function drawKnight(
   const hurtTilt = c.hurtTimer > 0 ? 0.12 : 0;
   ctx.rotate(hurtTilt);
 
-  const bodyTop = -c.h + 24; // top of torso relative to feet
+  // Geometry uses a fixed reference height; the outer scale (c.h/78) sets size.
+  const H = 78;
+  const bodyTop = -H + 24; // top of torso relative to feet
 
   // Legs
   ctx.strokeStyle = colors.bodyDark;
@@ -439,7 +428,7 @@ function drawKnight(
 
   // Torso
   ctx.fillStyle = flash ? "#ffffff" : colors.body;
-  roundRect(ctx, -16, bodyTop + bob, 32, c.h - 48, 9);
+  roundRect(ctx, -16, bodyTop + bob, 32, H - 48, 9);
   ctx.fill();
   // Belt / trim
   ctx.fillStyle = flash ? "#ffffff" : colors.trim;
@@ -477,7 +466,7 @@ function drawSword(
   bob: number,
   flash: boolean
 ) {
-  const armY = c.h * -0.55 + bob;
+  const armY = 78 * -0.55 + bob;
   let swing = -0.5; // resting angle (blade up)
   if (c.state === "attack") {
     const elapsed = c.attackDuration - c.attackTimer;

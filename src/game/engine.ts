@@ -1,8 +1,6 @@
 import {
   COLLISION_RADIUS_FACTOR,
-  ENEMY_ATTACK_DAMAGE,
   ENEMY_ATTACK_DEPTH,
-  ENEMY_ATTACK_REACH,
   ENEMY_DROP_CHANCE,
   ENEMY_HURT_FLASH,
   ENEMY_HURT_STUN,
@@ -227,7 +225,7 @@ export class GameEngine {
     // a grunt that is approaching, not one that has committed to an attack.
     if (e.attackTimer === 0) {
       e.hurtTimer = ENEMY_HURT_STUN;
-      e.vx = dir * ENEMY_KNOCKBACK;
+      e.vx = dir * ENEMY_KNOCKBACK * e.knockbackFactor;
     }
   }
 
@@ -280,11 +278,11 @@ export class GameEngine {
     const p = this.state.player;
     if (p.invulnTimer > 0) return;
     const front = e.facing;
-    const minX = front === 1 ? e.x : e.x - ENEMY_ATTACK_REACH;
-    const maxX = front === 1 ? e.x + ENEMY_ATTACK_REACH : e.x;
+    const minX = front === 1 ? e.x : e.x - e.attackReach;
+    const maxX = front === 1 ? e.x + e.attackReach : e.x;
     const withinX = p.x + p.w / 2 >= minX && p.x - p.w / 2 <= maxX;
     const withinDepth = Math.abs(p.y - e.y) <= ENEMY_ATTACK_DEPTH;
-    if (withinX && withinDepth) this.damagePlayer(ENEMY_ATTACK_DAMAGE, front);
+    if (withinX && withinDepth) this.damagePlayer(e.attackDamage, front);
   }
 
   private damagePlayer(amount: number, dir: number) {
