@@ -12,6 +12,7 @@ const EMPTY_HUD: GameState["hud"] = {
   enemiesRemaining: 0,
   progress: 0,
   phase: "playing",
+  boss: null,
 };
 
 export function Game() {

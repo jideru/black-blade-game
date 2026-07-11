@@ -92,6 +92,8 @@ export function createEnemies(): Enemy[] {
     ["brute", 3400, mid + 20],
     ["runner", 3450, mid - 40],
     ["grunt", 3500, mid + 60],
+    // The Gate Warden guards the end of the level.
+    ["boss", 3950, mid],
   ];
   return spawns.map(([kind, x, y]) => makeEnemy(kind, x, y));
 }

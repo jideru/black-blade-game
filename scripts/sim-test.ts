@@ -7,7 +7,7 @@ import {
   PICKUP_MANA,
   PICKUP_POWER,
 } from "../src/game/constants";
-import { updateEnemy } from "../src/game/enemy";
+import { isEnraged, updateEnemy } from "../src/game/enemy";
 import { createEnemies, createPlayer } from "../src/game/level";
 import { applyPickup } from "../src/game/pickups";
 import type { Character, Enemy } from "../src/game/types";
@@ -145,6 +145,42 @@ console.log("Test 6: pickups apply their effects (and clamp to max)");
   const before = p.attackDamage;
   applyPickup(p, "power");
   assert(p.attackDamage === before + PICKUP_POWER, "power pickup raises sword damage");
+}
+
+console.log("Test 7: the Gate Warden boss");
+{
+  const player = createPlayer();
+  const enemies = createEnemies();
+  const boss = enemies.find((e) => e.kind === "boss");
+  assert(!!boss, "a boss spawns in the level");
+  if (boss) {
+    assert(boss.maxHp >= 250, `boss is tanky (${boss.maxHp} HP)`);
+    assert(boss.knockbackFactor === 0, "boss cannot be knocked back");
+    assert(!isEnraged(boss), "not enraged at full HP");
+
+    // Commit a swing at full HP and record the recovery time.
+    player.x = boss.x - 40;
+    player.y = boss.y;
+    updateEnemy(boss, player, enemies, []);
+    const calmCooldown = boss.attackCooldown;
+    assert(boss.state === "attack", "boss commits to a swing in range");
+
+    // Drop below half HP: enraged, and the next swing recovers faster.
+    boss.hp = boss.maxHp * 0.4;
+    assert(isEnraged(boss), "enraged below half HP");
+    boss.attackTimer = 0;
+    boss.attackCooldown = 0;
+    boss.state = "idle";
+    updateEnemy(boss, player, enemies, []);
+    assert(
+      boss.attackCooldown < calmCooldown,
+      `enraged swings recover faster (${boss.attackCooldown} < ${calmCooldown} frames)`
+    );
+
+    // Death clears the enrage flag (no bar flicker after the kill).
+    boss.hp = 0;
+    assert(!isEnraged(boss), "enrage flag clears at 0 HP");
+  }
 }
 
 console.log(failures === 0 ? "\nAll checks passed ✓" : `\n${failures} check(s) FAILED ✗`);

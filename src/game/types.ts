@@ -79,5 +79,8 @@ export interface GameState {
     enemiesRemaining: number;
     progress: number; // 0..1 toward the end of the level
     phase: GamePhase;
+    // Set while the end-of-level boss is alive and the player is close enough
+    // to be fighting it.
+    boss: { hp: number; maxHp: number; enraged: boolean } | null;
   };
 }

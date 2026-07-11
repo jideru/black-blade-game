@@ -2,7 +2,7 @@
 // (engine.ts) read these off each enemy instance instead of global constants,
 // so behaviour varies by type.
 
-export type EnemyKind = "grunt" | "brute" | "runner";
+export type EnemyKind = "grunt" | "brute" | "runner" | "boss";
 
 export interface KnightColors {
   body: string;
@@ -57,6 +57,22 @@ export const ENEMY_TYPES: Record<EnemyKind, EnemyTypeDef> = {
     attackWindup: 26,
     knockbackFactor: 0.25,
     colors: { body: "#8a4a3a", bodyDark: "#5e2f24", trim: "#caa23a", skin: "#b8763e", blade: "#c0c0c8" },
+  },
+  // The Gate Warden: a hulking end-of-level boss. Immovable, huge telegraphed
+  // blows, and enrages below half HP (faster swings and movement — enemy.ts).
+  boss: {
+    maxHp: 300,
+    w: 62,
+    h: 118,
+    speed: 1.25,
+    aggroRange: 520,
+    attackRange: 74,
+    attackReach: 92,
+    attackDamage: 26,
+    attackDuration: 52,
+    attackWindup: 28,
+    knockbackFactor: 0,
+    colors: { body: "#3a2d4a", bodyDark: "#241a30", trim: "#b03a3a", skin: "#7a6a8a", blade: "#1a1620" },
   },
   // Fast, fragile, quick jabs. Closes distance and pesters.
   runner: {

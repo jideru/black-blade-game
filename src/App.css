@@ -125,6 +125,56 @@
   transition: width 0.12s linear;
 }
 
+/* Boss bar */
+.boss-bar {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 70%);
+  text-align: center;
+}
+
+.boss-label {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #e0b0b0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  margin-bottom: 4px;
+}
+
+.boss-bar.enraged .boss-label {
+  color: #ff6a5a;
+  animation: boss-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes boss-pulse {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.boss-hp {
+  height: 12px;
+  background: rgba(20, 8, 12, 0.75);
+  border: 2px solid rgba(176, 58, 58, 0.8);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.boss-hp-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #d84a3a, #8a1e1e);
+  transition: width 0.15s linear;
+}
+
+.boss-bar.enraged .boss-hp-fill {
+  background: linear-gradient(180deg, #ff7a4a, #b02a10);
+}
+
 .progress {
   position: absolute;
   bottom: 12px;

@@ -97,4 +97,9 @@ gameplay speed is identical on 60Hz and 120Hz (ProMotion) displays.
       tanky, hit hard, shrug off knockback), and **runners** (fast, fragile,
       quick jabs). Waves mix types more aggressively deeper into the level.
 
-Ideas for later: a boss at the gate, combo attacks, score, and sound.
+- [x] **Boss fight:** **The Gate Warden** guards the end gate — a hulking,
+      knockback-immune knight with huge telegraphed blows. Below half HP he
+      **enrages** (faster swings and movement, pulsing HUD warning). A boss
+      health bar appears when you get close. You can't win without killing him.
+
+Ideas for later: combo attacks, score, sound, and more levels.

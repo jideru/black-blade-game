@@ -31,6 +31,20 @@ export function Hud({ hud, onRestart }: Props) {
         </div>
       </div>
 
+      {hud.boss && (
+        <div className={`boss-bar ${hud.boss.enraged ? "enraged" : ""}`}>
+          <div className="boss-label">
+            {hud.boss.enraged ? "⚔ THE GATE WARDEN — ENRAGED ⚔" : "THE GATE WARDEN"}
+          </div>
+          <div className="boss-hp">
+            <div
+              className="boss-hp-fill"
+              style={{ width: `${(hud.boss.hp / hud.boss.maxHp) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="progress">
         <div className="progress-fill" style={{ width: `${hud.progress * 100}%` }} />
         <div className="progress-flag" style={{ left: `${hud.progress * 100}%` }}>

@@ -7,6 +7,11 @@ import {
 import { blockedByObstacle, clampDepth, type Obstacle } from "./terrain";
 import type { Character, Enemy } from "./types";
 
+// A boss below half HP fights faster. Exported so the renderer/HUD can react.
+export function isEnraged(enemy: Enemy): boolean {
+  return enemy.kind === "boss" && enemy.hp > 0 && enemy.hp <= enemy.maxHp * 0.5;
+}
+
 // Decay and apply residual knockback velocity (set when the grunt is hit).
 function applyKnockback(enemy: Enemy, obstacles: Obstacle[]) {
   if (Math.abs(enemy.vx) > 0.1 || Math.abs(enemy.vy) > 0.1) {
@@ -62,10 +67,15 @@ export function updateEnemy(
   const adx = Math.abs(dx);
   const ady = Math.abs(dy);
 
+  // Enraged boss (below half HP): faster swings and movement.
+  const enraged = isEnraged(enemy);
+  const speed = enraged ? enemy.speed * 1.45 : enemy.speed;
+  const recovery = enraged ? ENEMY_ATTACK_COOLDOWN * 0.45 : ENEMY_ATTACK_COOLDOWN;
+
   // In range and ready: commit to a swing.
   if (adx <= enemy.attackRange && ady <= ENEMY_ATTACK_DEPTH && enemy.attackCooldown === 0) {
     enemy.attackTimer = enemy.attackDuration;
-    enemy.attackCooldown = enemy.attackDuration + ENEMY_ATTACK_COOLDOWN;
+    enemy.attackCooldown = enemy.attackDuration + recovery;
     enemy.hasHitThisSwing = false;
     enemy.state = "attack";
     enemy.vx = 0;
@@ -110,9 +120,9 @@ export function updateEnemy(
       vx /= len;
       vy /= len;
       const r = enemy.w * COLLISION_RADIUS_FACTOR;
-      const tryX = enemy.x + vx * enemy.speed;
+      const tryX = enemy.x + vx * speed;
       if (!blockedByObstacle(tryX, enemy.y, r, obstacles)) enemy.x = tryX;
-      const tryY = clampDepth(enemy.x, enemy.y + vy * enemy.speed);
+      const tryY = clampDepth(enemy.x, enemy.y + vy * speed);
       if (!blockedByObstacle(enemy.x, tryY, r, obstacles)) enemy.y = tryY;
       enemy.y = clampDepth(enemy.x, enemy.y);
       enemy.state = "walk";

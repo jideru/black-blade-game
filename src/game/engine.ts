@@ -22,7 +22,7 @@ import {
   VIEW_WIDTH,
   WORLD_WIDTH,
 } from "./constants";
-import { updateEnemy } from "./enemy";
+import { isEnraged, updateEnemy } from "./enemy";
 import { Input } from "./input";
 import { createEnemies, createPlayer } from "./level";
 import { applyPickup, createPickups, dropPickup } from "./pickups";
@@ -78,6 +78,7 @@ export class GameEngine {
         enemiesRemaining: 0,
         progress: 0,
         phase: "playing",
+        boss: null,
       },
     };
     this.emitHud();
@@ -302,6 +303,14 @@ export class GameEngine {
     s.hud.enemiesRemaining = aliveEnemies;
     s.hud.progress = Math.max(0, Math.min(1, s.player.x / LEVEL_END_X));
     s.hud.phase = s.phase;
+
+    // Surface the boss bar once the player is close enough to be fighting it.
+    const boss = s.enemies.find((e) => e.kind === "boss" && e.state !== "dead");
+    s.hud.boss =
+      boss && Math.abs(boss.x - s.player.x) <= boss.aggroRange + 80
+        ? { hp: boss.hp, maxHp: boss.maxHp, enraged: isEnraged(boss) }
+        : null;
+
     this.emitHud();
   }
 

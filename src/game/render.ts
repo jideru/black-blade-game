@@ -56,8 +56,17 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
     if (d.kind === "player") {
       drawKnight(ctx, d.ref, screenX, PLAYER_COLORS, false);
     } else if (d.kind === "enemy") {
-      drawKnight(ctx, d.ref, screenX, ENEMY_TYPES[d.ref.kind].colors, d.ref.flashTimer > 0);
-      if (d.ref.state !== "dead") drawEnemyHealthBar(ctx, d.ref, screenX);
+      drawKnight(
+        ctx,
+        d.ref,
+        screenX,
+        ENEMY_TYPES[d.ref.kind].colors,
+        d.ref.flashTimer > 0,
+        d.ref.kind === "boss"
+      );
+      if (d.ref.state !== "dead" && d.ref.kind !== "boss") {
+        drawEnemyHealthBar(ctx, d.ref, screenX); // boss has the big HUD bar
+      }
     } else if (d.kind === "obstacle") {
       drawObstacle(ctx, d.ref, screenX);
     } else {
@@ -368,7 +377,8 @@ function drawKnight(
   c: Character,
   screenX: number,
   colors: KnightColors,
-  flash: boolean
+  flash: boolean,
+  horned = false
 ) {
   // Scale by depth and by body height relative to the player (h = 78), so
   // brutes loom larger and runners are smaller.
@@ -452,6 +462,19 @@ function drawKnight(
   ctx.arc(0, headY - 2, 14, Math.PI, Math.PI * 2);
   ctx.fill();
   ctx.fillRect(-14, headY - 4, 28, 5);
+
+  // Boss horns curving up from the helmet.
+  if (horned) {
+    ctx.fillStyle = flash ? "#ffffff" : colors.trim;
+    for (const side of [-1, 1] as const) {
+      ctx.beginPath();
+      ctx.moveTo(side * 10, headY - 10);
+      ctx.quadraticCurveTo(side * 22, headY - 18, side * 18, headY - 34);
+      ctx.quadraticCurveTo(side * 14, headY - 20, side * 5, headY - 15);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
 
   // Sword arm + blade. When attacking, swing the blade forward.
   drawSword(ctx, c, colors, bob, flash);
