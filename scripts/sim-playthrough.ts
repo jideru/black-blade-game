@@ -1,191 +1,39 @@
-// Headless playthrough simulations: a scripted bot plays the real level using
-// the actual game logic (no canvas / rAF). Mirrors GameEngine.step so the
-// numbers reflect real gameplay. Run with: npx tsx scripts/sim-playthrough.ts
+// Headless playthrough simulations: scripted bots play the real level through
+// the same stepWorld the game runs. Run with: npm run sim
 import {
   COLLISION_RADIUS_FACTOR,
-  ENEMY_ATTACK_DEPTH,
-  ENEMY_HURT_FLASH,
-  ENEMY_HURT_STUN,
-  ENEMY_KNOCKBACK,
-  HAZARD_DAMAGE,
-  HURT_INVULN,
-  KNOCKBACK,
-  LEVEL_END_X,
-  MAGIC_COOLDOWN,
   MAGIC_COST,
-  MAGIC_DAMAGE,
   MAGIC_RADIUS,
-  PICKUP_RADIUS,
   PLAYER_ATTACK_DEPTH,
-  PLAYER_ATTACK_DURATION,
   PLAYER_ATTACK_REACH,
   PLAYER_SPEED,
 } from "../src/game/constants";
-import { updateEnemy } from "../src/game/enemy";
-import type { InputState } from "../src/game/input";
-import { createEnemies, createPlayer } from "../src/game/level";
-import { applyPickup, createPickups } from "../src/game/pickups";
-import { updatePlayer } from "../src/game/player";
-import {
-  blockedByObstacle,
-  clampDepth,
-  createObstacles,
-  hazardAt,
-  type Obstacle,
-} from "../src/game/terrain";
-import type { Character, Enemy, Pickup } from "../src/game/types";
+import { neutralInput, type InputState } from "../src/game/input";
+import { blockedByObstacle, clampDepth, hazardAt } from "../src/game/terrain";
+import type { Enemy, GameState } from "../src/game/types";
+import { createWorld, stepWorld } from "../src/game/world";
 
-interface Sim {
-  player: Character;
-  enemies: Enemy[];
-  obstacles: Obstacle[];
-  pickups: Pickup[];
-  phase: "playing" | "won" | "dead";
-}
-
-// Mirror of GameEngine.collectPickups (placed pickups only; drops are random
-// so they're left out to keep the sim deterministic).
-function collectPickups(s: Sim) {
-  const p = s.player;
-  const reach = PICKUP_RADIUS + p.w * 0.4;
-  s.pickups = s.pickups.filter((pk) => {
-    const dx = pk.x - p.x;
-    const dy = pk.y - p.y;
-    if (dx * dx + dy * dy > reach * reach) return true;
-    applyPickup(p, pk.kind);
-    return false;
-  });
-}
-
-// --- engine combat logic, mirrored from src/game/engine.ts ---
-function damageEnemy(e: Enemy, dir: number, amount: number) {
-  e.hp -= amount;
-  e.flashTimer = ENEMY_HURT_FLASH;
-  if (e.hp <= 0) {
-    e.hp = 0;
-    e.state = "dead";
-    e.vx = 0;
-    e.vy = 0;
-    return;
-  }
-  // Hyperarmor: a committed (mid-swing) grunt is not interrupted by a hit.
-  if (e.attackTimer === 0) {
-    e.hurtTimer = ENEMY_HURT_STUN;
-    e.vx = dir * ENEMY_KNOCKBACK * e.knockbackFactor;
-  }
-}
-
-function resolvePlayerAttack(s: Sim) {
-  const p = s.player;
-  const front = p.facing;
-  const minX = front === 1 ? p.x : p.x - PLAYER_ATTACK_REACH;
-  const maxX = front === 1 ? p.x + PLAYER_ATTACK_REACH : p.x;
-  for (const e of s.enemies) {
-    if (e.state === "dead") continue;
-    const withinX = e.x + e.w / 2 >= minX && e.x - e.w / 2 <= maxX;
-    const withinDepth = Math.abs(e.y - p.y) <= PLAYER_ATTACK_DEPTH;
-    if (withinX && withinDepth) {
-      damageEnemy(e, front, p.attackDamage);
-      p.hasHitThisSwing = true;
-    }
-  }
-}
-
-function resolveEnemyAttack(e: Enemy, p: Character) {
-  if (e.state !== "attack" || e.hasHitThisSwing) return;
-  const elapsed = e.attackDuration - e.attackTimer;
-  if (elapsed < e.attackWindup) return;
-  e.hasHitThisSwing = true;
-  if (p.invulnTimer > 0) return;
-  const front = e.facing;
-  const minX = front === 1 ? e.x : e.x - e.attackReach;
-  const maxX = front === 1 ? e.x + e.attackReach : e.x;
-  const withinX = p.x + p.w / 2 >= minX && p.x - p.w / 2 <= maxX;
-  const withinDepth = Math.abs(p.y - e.y) <= ENEMY_ATTACK_DEPTH;
-  if (withinX && withinDepth) {
-    p.hp = Math.max(0, p.hp - e.attackDamage);
-    p.hurtTimer = HURT_INVULN;
-    p.invulnTimer = HURT_INVULN;
-    p.x = Math.max(40, Math.min(LEVEL_END_X, p.x + front * KNOCKBACK));
-  }
-}
-
-// Mirror of GameEngine.castMagic — area burst around the player.
-function castMagic(s: Sim) {
-  const p = s.player;
-  p.mana -= MAGIC_COST;
-  p.magicCooldown = MAGIC_COOLDOWN;
-  for (const e of s.enemies) {
-    if (e.state === "dead") continue;
-    const dx = e.x - p.x;
-    const dy = (e.y - p.y) * 1.4;
-    if (dx * dx + dy * dy <= MAGIC_RADIUS * MAGIC_RADIUS) {
-      damageEnemy(e, Math.sign(dx) || 1, MAGIC_DAMAGE);
-    }
-  }
-}
-
-function step(s: Sim, input: InputState) {
-  if (s.phase !== "playing") return;
-  updatePlayer(s.player, input, s.obstacles);
-  if (
-    input.magicPressed &&
-    s.player.magicCooldown === 0 &&
-    s.player.mana >= MAGIC_COST &&
-    s.player.attackTimer === 0
-  ) {
-    castMagic(s);
-  }
-  const swinging = s.player.attackTimer > 0;
-  if (swinging && s.player.attackTimer < PLAYER_ATTACK_DURATION - 3 && !s.player.hasHitThisSwing) {
-    resolvePlayerAttack(s);
-  }
-  if (s.player.invulnTimer === 0) {
-    const r = s.player.w * COLLISION_RADIUS_FACTOR;
-    if (hazardAt(s.player.x, s.player.y, r, s.obstacles)) {
-      s.player.hp = Math.max(0, s.player.hp - HAZARD_DAMAGE);
-      s.player.invulnTimer = HURT_INVULN;
-    }
-  }
-  collectPickups(s);
-  for (const e of s.enemies) updateEnemy(e, s.player, s.enemies, s.obstacles);
-  for (const e of s.enemies) resolveEnemyAttack(e, s.player);
-  const alive = s.enemies.filter((e) => e.state !== "dead").length;
-  if (s.player.x >= LEVEL_END_X && alive === 0) s.phase = "won";
-  if (s.player.hp <= 0) s.phase = "dead";
-}
-
-// --- a scripted "bot" player ---
 interface BotConfig {
   name: string;
   engageDist: number; // how close it gets before it stops to swing
-  attacks: boolean; // whether it ever swings
+  attacks: boolean;
   reactionDelay?: number; // frames between attack decisions (0 = frame-perfect)
-  alignDepth?: boolean; // whether it lines up depth before swinging (default true)
-  useMagic?: boolean; // cast the magic special when it can
+  alignDepth?: boolean; // line up depth before swinging (default true)
+  useMagic?: boolean;
 }
 
-function botInput(
-  s: Sim,
-  cfg: BotConfig,
-  mem: { prevWant: boolean; cooldown: number; dodgeDir: number; dodgeFrames: number }
-): InputState {
-  const p = s.player;
-  const input: InputState = {
-    left: false,
-    right: false,
-    up: false,
-    down: false,
-    attack: false,
-    magic: false,
-    attackPressed: false,
-    magicPressed: false,
-    restartPressed: false,
-  };
-  // Nearest living enemy that is roughly ahead/near.
+interface BotMemory {
+  prevWant: boolean;
+  cooldown: number;
+  dodgeDir: number;
+  dodgeFrames: number;
+}
+
+function nearestTarget(state: GameState): Enemy | null {
+  const p = state.player;
   let target: Enemy | null = null;
   let best = Infinity;
-  for (const e of s.enemies) {
+  for (const e of state.enemies) {
     if (e.state === "dead") continue;
     const d = Math.abs(e.x - p.x) + Math.abs(e.y - p.y) * 0.5;
     if (d < best && e.x < p.x + 420) {
@@ -193,8 +41,17 @@ function botInput(
       target = e;
     }
   }
+  return target;
+}
+
+function botInput(state: GameState, cfg: BotConfig, mem: BotMemory): InputState {
+  const p = state.player;
+  const input = neutralInput();
+  const target = nearestTarget(state);
+
   if (mem.cooldown > 0) mem.cooldown--;
   const alignDepth = cfg.alignDepth ?? true;
+
   if (target) {
     const dx = target.x - p.x;
     const dy = target.y - p.y;
@@ -206,89 +63,85 @@ function botInput(
       if (dx > 0) input.right = true;
       else input.left = true;
     }
+
     const inRange = Math.abs(dx) <= PLAYER_ATTACK_REACH && Math.abs(dy) <= PLAYER_ATTACK_DEPTH;
-    const ready = inRange && p.attackCooldown === 0 && mem.cooldown === 0;
-    const want = cfg.attacks && ready;
+    const want = cfg.attacks && inRange && p.attackCooldown === 0 && mem.cooldown === 0;
     input.attackPressed = want && !mem.prevWant;
     if (input.attackPressed) mem.cooldown = cfg.reactionDelay ?? 0;
     mem.prevWant = want;
 
-    // Blast with magic when affordable and a target is inside the radius.
     if (cfg.useMagic && p.magicCooldown === 0 && p.mana >= MAGIC_COST) {
-      const inBlast = Math.hypot(dx, dy * 1.4) <= MAGIC_RADIUS;
-      if (inBlast) input.magicPressed = true;
+      if (Math.hypot(dx, dy * 1.4) <= MAGIC_RADIUS) input.magicPressed = true;
     }
   } else {
     input.right = true; // head for the gate
     mem.prevWant = false;
   }
 
-  // Obstacle/hazard avoidance: if the way ahead is blocked or thorny, steer
-  // into the depth axis to go around. Commit to a dodge direction for a stretch
-  // of frames (hysteresis) so the bot doesn't oscillate in front of a rock.
-  const dirX = input.right ? 1 : input.left ? -1 : 0;
-  if (mem.dodgeFrames > 0) mem.dodgeFrames--;
-  if (dirX !== 0) {
-    const r = p.w * COLLISION_RADIUS_FACTOR;
-    const ahead = p.x + dirX * PLAYER_SPEED * 4;
-    const obstructed = (y: number) =>
-      blockedByObstacle(ahead, y, r, s.obstacles) || hazardAt(ahead, y, r, s.obstacles) != null;
-    if (obstructed(p.y) && mem.dodgeFrames === 0) {
-      // Find the nearest clear lane by scanning outward in depth.
-      let dir = 1;
-      for (let d = 24; d <= 90; d += 12) {
-        if (!obstructed(clampDepth(ahead, p.y + d))) {
-          dir = 1;
-          break;
-        }
-        if (!obstructed(clampDepth(ahead, p.y - d))) {
-          dir = -1;
-          break;
-        }
-      }
-      mem.dodgeDir = dir;
-      mem.dodgeFrames = 22;
-    }
-    if (mem.dodgeFrames > 0) {
-      input.up = mem.dodgeDir < 0;
-      input.down = mem.dodgeDir > 0;
-    }
-  }
+  steerAroundObstacles(state, input, mem);
   return input;
 }
 
-function run(cfg: BotConfig) {
-  const s: Sim = {
-    player: createPlayer(),
-    enemies: createEnemies(),
-    obstacles: createObstacles(),
-    pickups: createPickups(),
-    phase: "playing",
-  };
-  const mem = { prevWant: false, cooldown: 0, dodgeDir: 1, dodgeFrames: 0 };
-  const maxFrames = 60 * 120; // 2 minute safety cap
-  let frame = 0;
-  let minHp = s.player.maxHp;
-  for (; frame < maxFrames && s.phase === "playing"; frame++) {
-    step(s, botInput(s, cfg, mem));
-    minHp = Math.min(minHp, s.player.hp);
+// If the way ahead is blocked or thorny, commit to a depth-axis dodge for a
+// stretch of frames so the bot doesn't oscillate in front of a rock.
+function steerAroundObstacles(state: GameState, input: InputState, mem: BotMemory) {
+  const p = state.player;
+  const dirX = input.right ? 1 : input.left ? -1 : 0;
+  if (mem.dodgeFrames > 0) mem.dodgeFrames--;
+  if (dirX === 0) return;
+
+  const radius = p.w * COLLISION_RADIUS_FACTOR;
+  const ahead = p.x + dirX * PLAYER_SPEED * 4;
+  const obstructed = (y: number) =>
+    blockedByObstacle(ahead, y, radius, state.obstacles) ||
+    hazardAt(ahead, y, radius, state.obstacles) != null;
+
+  if (obstructed(p.y) && mem.dodgeFrames === 0) {
+    let dir = 1;
+    for (let d = 24; d <= 90; d += 12) {
+      if (!obstructed(clampDepth(ahead, p.y + d))) {
+        dir = 1;
+        break;
+      }
+      if (!obstructed(clampDepth(ahead, p.y - d))) {
+        dir = -1;
+        break;
+      }
+    }
+    mem.dodgeDir = dir;
+    mem.dodgeFrames = 22;
   }
-  const killed = s.enemies.filter((e) => e.state === "dead").length;
-  const result =
-    s.phase === "won" ? "WON" : s.phase === "dead" ? "DIED" : "TIMED OUT";
+  if (mem.dodgeFrames > 0) {
+    input.up = mem.dodgeDir < 0;
+    input.down = mem.dodgeDir > 0;
+  }
+}
+
+function run(cfg: BotConfig) {
+  // rng of 1 disables random drops so runs stay deterministic.
+  const state = createWorld(() => 1);
+  const mem: BotMemory = { prevWant: false, cooldown: 0, dodgeDir: 1, dodgeFrames: 0 };
+  const maxFrames = 60 * 120;
+  let frame = 0;
+  let minHp = state.player.maxHp;
+
+  for (; frame < maxFrames && state.phase === "playing"; frame++) {
+    stepWorld(state, botInput(state, cfg, mem));
+    minHp = Math.min(minHp, state.player.hp);
+  }
+
+  const killed = state.enemies.filter((e) => e.state === "dead").length;
+  const result = state.phase === "won" ? "WON" : state.phase === "dead" ? "DIED" : "TIMED OUT";
   console.log(
-    `  ${cfg.name.padEnd(20)} ${result.padEnd(10)} ` +
-      `time ${(frame / 60).toFixed(1)}s  killed ${killed}/${s.enemies.length}  ` +
-      `HP ${Math.round(s.player.hp)} (low ${Math.round(minHp)})`
+    `  ${cfg.name.padEnd(21)} ${result.padEnd(10)} ` +
+      `time ${(frame / 60).toFixed(1)}s  killed ${killed}/${state.enemies.length}  ` +
+      `HP ${Math.round(state.player.hp)} (low ${Math.round(minHp)})`
   );
-  return { result, killed, hp: s.player.hp };
 }
 
 console.log("Playthrough simulations (real game logic, scripted bots):\n");
 run({ name: "Aggressive (perfect)", engageDist: 38, attacks: true });
 run({ name: "Cautious (perfect)", engageDist: 52, attacks: true });
-// Realistic imperfect player: slow reactions (slower than the attack cooldown)
-// but does aim and reposition.
 run({ name: "Human-ish (slow)", engageDist: 44, attacks: true, reactionDelay: 40 });
 run({ name: "Mage (sword+magic)", engageDist: 38, attacks: true, useMagic: true });
 run({ name: "Pacifist (no attacks)", engageDist: 38, attacks: false });

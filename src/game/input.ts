@@ -1,23 +1,28 @@
-// Tracks which game actions are currently held. We map several physical keys
-// onto each logical action so arrows + WASD both work.
-
 export interface InputState {
   left: boolean;
   right: boolean;
   up: boolean;
   down: boolean;
-  attack: boolean;
-  magic: boolean;
-  // edge-triggered: true for one poll after the key goes down
   attackPressed: boolean;
   magicPressed: boolean;
   restartPressed: boolean;
 }
 
-const KEY_MAP: Record<
-  string,
-  keyof Omit<InputState, "attackPressed" | "magicPressed" | "restartPressed">
-> = {
+export function neutralInput(): InputState {
+  return {
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+    attackPressed: false,
+    magicPressed: false,
+    restartPressed: false,
+  };
+}
+
+type HeldAction = "left" | "right" | "up" | "down" | "attack" | "magic";
+
+const KEY_MAP: Record<string, HeldAction> = {
   ArrowLeft: "left",
   KeyA: "left",
   ArrowRight: "right",
@@ -33,16 +38,13 @@ const KEY_MAP: Record<
 };
 
 export class Input {
-  private state: InputState = {
+  private held: Record<HeldAction, boolean> = {
     left: false,
     right: false,
     up: false,
     down: false,
     attack: false,
     magic: false,
-    attackPressed: false,
-    magicPressed: false,
-    restartPressed: false,
   };
 
   private attackEdge = false;
@@ -53,20 +55,18 @@ export class Input {
     const action = KEY_MAP[e.code];
     if (action) {
       e.preventDefault();
-      if (action === "attack" && !this.state.attack) this.attackEdge = true;
-      if (action === "magic" && !this.state.magic) this.magicEdge = true;
-      this.state[action] = true;
+      if (action === "attack" && !this.held.attack) this.attackEdge = true;
+      if (action === "magic" && !this.held.magic) this.magicEdge = true;
+      this.held[action] = true;
     }
-    if (e.code === "Enter" || e.code === "KeyR") {
-      this.restartEdge = true;
-    }
+    if (e.code === "Enter" || e.code === "KeyR") this.restartEdge = true;
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
     const action = KEY_MAP[e.code];
     if (action) {
       e.preventDefault();
-      this.state[action] = false;
+      this.held[action] = false;
     }
   };
 
@@ -80,10 +80,12 @@ export class Input {
     window.removeEventListener("keyup", this.onKeyUp);
   }
 
-  /** Returns the current frame's input, consuming edge-triggered presses. */
   poll(): InputState {
     const snapshot: InputState = {
-      ...this.state,
+      left: this.held.left,
+      right: this.held.right,
+      up: this.held.up,
+      down: this.held.down,
       attackPressed: this.attackEdge,
       magicPressed: this.magicEdge,
       restartPressed: this.restartEdge,

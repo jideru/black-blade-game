@@ -1,20 +1,17 @@
 import { FLOOR_BOTTOM, FLOOR_TOP, LEVEL_END_X } from "./constants";
 
-// A static piece of the map. Rocks block movement; thorns hurt anyone who
-// stands in them. Both sort into the depth order with characters.
 export interface Obstacle {
-  x: number; // world x
-  y: number; // feet position (depth)
-  r: number; // footprint radius (collision / hazard)
+  x: number;
+  y: number;
+  r: number;
   kind: "rock" | "thorns";
-  solid: boolean; // blocks movement
-  hazard: boolean; // damages the player on contact
-  seed: number; // per-instance variation for drawing
+  solid: boolean;
+  hazard: boolean;
+  seed: number;
 }
 
-// The far (back) edge of the walkable path. Instead of a straight line it
-// undulates with world x, so the path organically widens and narrows. Both the
-// renderer and the movement clamp use this, so what you see is what blocks you.
+// The back edge of the walkable path undulates with world x. Both the renderer
+// and the movement clamp use this, so what you see is what bounds you.
 export function backEdgeY(worldX: number): number {
   return (
     FLOOR_TOP +
@@ -24,12 +21,10 @@ export function backEdgeY(worldX: number): number {
   );
 }
 
-// Clamp a feet position into the walkable band at the given world x.
 export function clampDepth(worldX: number, y: number): number {
   return Math.max(backEdgeY(worldX), Math.min(FLOOR_BOTTOM, y));
 }
 
-// Is (x, y) blocked by a solid obstacle for a body of the given radius?
 export function blockedByObstacle(
   x: number,
   y: number,
@@ -40,13 +35,12 @@ export function blockedByObstacle(
     if (!o.solid) continue;
     const dx = x - o.x;
     const dy = y - o.y;
-    const rr = radius + o.r;
-    if (dx * dx + dy * dy < rr * rr) return true;
+    const reach = radius + o.r;
+    if (dx * dx + dy * dy < reach * reach) return true;
   }
   return false;
 }
 
-// Return the hazard the body is standing in, if any.
 export function hazardAt(
   x: number,
   y: number,
@@ -57,32 +51,33 @@ export function hazardAt(
     if (!o.hazard) continue;
     const dx = x - o.x;
     const dy = y - o.y;
-    const rr = radius + o.r * 0.7; // need to be fairly inside the patch
-    if (dx * dx + dy * dy < rr * rr) return o;
+    const reach = radius + o.r * 0.7;
+    if (dx * dx + dy * dy < reach * reach) return o;
   }
   return null;
 }
 
 let nextSeed = 1;
 
-function rock(x: number, yFrac: number, r: number): Obstacle {
-  const y = FLOOR_TOP + 30 + yFrac * (FLOOR_BOTTOM - (FLOOR_TOP + 30));
-  return { x, y, r, kind: "rock", solid: true, hazard: false, seed: nextSeed++ };
+function obstacleY(depthFraction: number): number {
+  return FLOOR_TOP + 30 + depthFraction * (FLOOR_BOTTOM - (FLOOR_TOP + 30));
 }
 
-function thorns(x: number, yFrac: number, r: number): Obstacle {
-  const y = FLOOR_TOP + 30 + yFrac * (FLOOR_BOTTOM - (FLOOR_TOP + 30));
-  return { x, y, r, kind: "thorns", solid: false, hazard: true, seed: nextSeed++ };
+function rock(x: number, depthFraction: number, r: number): Obstacle {
+  return { x, y: obstacleY(depthFraction), r, kind: "rock", solid: true, hazard: false, seed: nextSeed++ };
 }
 
-// Hand-placed obstacles down the length of the level. yFrac is 0 (back of the
-// path) .. 1 (front). Rocks are kept to the back or front of the band and well
-// spaced in x, so there is always a clear lane to walk around them — they are
-// cover, never a wall. Thorns sit anywhere since you can push through them (at a
-// cost). Tuned so the level stays completable (see scripts/sim-playthrough.ts).
+function thorns(x: number, depthFraction: number, r: number): Obstacle {
+  return { x, y: obstacleY(depthFraction), r, kind: "thorns", solid: false, hazard: true, seed: nextSeed++ };
+}
+
+// Rocks hug the back or front of the band and are spaced out so there is
+// always a clear lane around them — cover, never a wall. Thorns can sit
+// anywhere since you can push through them at a cost. Completability is
+// verified by scripts/sim-playthrough.ts.
 export function createObstacles(): Obstacle[] {
   nextSeed = 1;
-  const list: Obstacle[] = [
+  const layout: Obstacle[] = [
     rock(540, 0.16, 24),
     thorns(820, 0.62, 24),
     rock(1080, 0.82, 24),
@@ -97,6 +92,5 @@ export function createObstacles(): Obstacle[] {
     thorns(3320, 0.3, 22),
     rock(3560, 0.16, 24),
   ];
-  // Keep obstacles clear of the very start and the end gate.
-  return list.filter((o) => o.x > 240 && o.x < LEVEL_END_X - 80);
+  return layout.filter((o) => o.x > 240 && o.x < LEVEL_END_X - 80);
 }

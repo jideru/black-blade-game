@@ -52,23 +52,39 @@ Vercel auto-detects Vite. Either:
 
 ## Architecture
 
-The game logic is framework-agnostic and lives in `src/game/`; React only mounts
-the canvas and renders the HUD overlay.
+The simulation is a pure, DOM-free core; the browser bits (keyboard, canvas,
+React) are thin adapters around it. The headless test scripts drive the same
+`stepWorld` the game runs, so there is no duplicated logic to drift.
 
-| File                  | Responsibility                                           |
-| --------------------- | -------------------------------------------------------- |
-| `game/engine.ts`      | Fixed-timestep game loop, combat resolution, camera, HUD |
-| `game/player.ts`      | Player movement + attack state machine                   |
-| `game/enemy.ts`       | Enemy AI: aggro, chase, separation, telegraphed attack   |
-| `game/input.ts`       | Keyboard → logical actions (held + edge-triggered)       |
-| `game/render.ts`      | Canvas drawing: parallax background + characters         |
-| `game/level.ts`       | Player/enemy factories and enemy spawn placement         |
-| `game/constants.ts`   | Tunable gameplay values                                  |
-| `components/Game.tsx` | Canvas + engine lifecycle                                |
-| `components/Hud.tsx`  | Health, enemy count, progress, win/lose overlay          |
+**Domain core** (`src/game/`, pure):
 
-The simulation runs on a **fixed 60Hz timestep** decoupled from rendering, so
+| File            | Responsibility                                              |
+| --------------- | ----------------------------------------------------------- |
+| `world.ts`      | `createWorld` / `stepWorld` / `buildHud` — the sim entry     |
+| `combat.ts`     | Damage, attack resolution, magic burst, pickups, drops      |
+| `player.ts`     | Player movement + attack state machine                      |
+| `enemy.ts`      | Enemy AI: aggro, chase, separation, swings, boss enrage     |
+| `level.ts`      | Player/enemy factories and spawn placement                  |
+| `enemyTypes.ts` | Per-type enemy stats (grunt / brute / runner / boss)        |
+| `terrain.ts`    | Squiggly path edge, obstacle collision, hazards             |
+| `pickups.ts`    | Pickup placement, drops, and effects                        |
+| `types.ts`      | Domain types                                                |
+| `constants.ts`  | Tunable gameplay values                                     |
+
+**Adapters and UI**:
+
+| File                  | Responsibility                                          |
+| --------------------- | ------------------------------------------------------- |
+| `game/engine.ts`      | Fixed-timestep rAF loop bridging input → world → canvas |
+| `game/input.ts`       | Keyboard → logical actions (held + edge-triggered)      |
+| `game/render.ts`      | Canvas drawing; owns all colors and visual style        |
+| `components/Game.tsx` | Canvas + engine lifecycle                               |
+| `components/Hud.tsx`  | Health/mana bars, boss bar, progress, win/lose overlay  |
+
+The world steps on a **fixed 60Hz timestep** decoupled from rendering, so
 gameplay speed is identical on 60Hz and 120Hz (ProMotion) displays.
+`createWorld` takes an injectable RNG, which the sims use to disable random
+drops for deterministic runs.
 
 ## Roadmap
 

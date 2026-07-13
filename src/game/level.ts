@@ -7,12 +7,14 @@ import {
   PLAYER_MAX_MANA,
 } from "./constants";
 import { ENEMY_TYPES, type EnemyKind } from "./enemyTypes";
-import type { Character, Enemy } from "./types";
+import type { Enemy, Player } from "./types";
 
-export function createPlayer(): Character {
+const FLOOR_MID = (FLOOR_TOP + FLOOR_BOTTOM) / 2;
+
+export function createPlayer(): Player {
   return {
     x: 140,
-    y: (FLOOR_TOP + FLOOR_BOTTOM) / 2,
+    y: FLOOR_MID,
     vx: 0,
     vy: 0,
     w: 38,
@@ -53,10 +55,7 @@ function makeEnemy(kind: EnemyKind, x: number, y: number): Enemy {
     hp: def.maxHp,
     maxHp: def.maxHp,
     state: "idle",
-    mana: 0,
-    maxMana: 0,
     attackDamage: def.attackDamage,
-    magicCooldown: 0,
     attackTimer: 0,
     attackCooldown: 0,
     attackDuration: def.attackDuration,
@@ -74,26 +73,24 @@ function makeEnemy(kind: EnemyKind, x: number, y: number): Enemy {
   };
 }
 
-// Hand-placed enemy waves across the level. Early stretches are mostly grunts;
-// runners and brutes appear deeper in, building difficulty toward the end.
+// Waves mix in runners and brutes deeper into the level; the Gate Warden
+// guards the end gate.
 export function createEnemies(): Enemy[] {
   nextEnemyId = 1;
-  const mid = (FLOOR_TOP + FLOOR_BOTTOM) / 2;
   const spawns: Array<[EnemyKind, number, number]> = [
-    ["grunt", 700, mid - 30],
-    ["grunt", 1100, mid + 40],
-    ["runner", 1150, mid - 50],
-    ["grunt", 1700, mid],
-    ["runner", 2050, mid + 50],
-    ["grunt", 2100, mid - 40],
-    ["brute", 2150, mid + 10],
-    ["runner", 2750, mid - 30],
-    ["grunt", 2800, mid + 40],
-    ["brute", 3400, mid + 20],
-    ["runner", 3450, mid - 40],
-    ["grunt", 3500, mid + 60],
-    // The Gate Warden guards the end of the level.
-    ["boss", 3950, mid],
+    ["grunt", 700, FLOOR_MID - 30],
+    ["grunt", 1100, FLOOR_MID + 40],
+    ["runner", 1150, FLOOR_MID - 50],
+    ["grunt", 1700, FLOOR_MID],
+    ["runner", 2050, FLOOR_MID + 50],
+    ["grunt", 2100, FLOOR_MID - 40],
+    ["brute", 2150, FLOOR_MID + 10],
+    ["runner", 2750, FLOOR_MID - 30],
+    ["grunt", 2800, FLOOR_MID + 40],
+    ["brute", 3400, FLOOR_MID + 20],
+    ["runner", 3450, FLOOR_MID - 40],
+    ["grunt", 3500, FLOOR_MID + 60],
+    ["boss", 3950, FLOOR_MID],
   ];
   return spawns.map(([kind, x, y]) => makeEnemy(kind, x, y));
 }

@@ -1,7 +1,7 @@
-import type { GameState } from "../game/types";
+import type { HudState } from "../game/types";
 
 interface Props {
-  hud: GameState["hud"];
+  hud: HudState;
   onRestart: () => void;
 }
 

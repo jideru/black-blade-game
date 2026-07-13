@@ -3,34 +3,16 @@ import {
   ENEMY_ATTACK_COOLDOWN,
   ENEMY_ATTACK_DEPTH,
   ENEMY_SEPARATION,
+  ENRAGE_RECOVERY_FACTOR,
+  ENRAGE_SPEED_FACTOR,
 } from "./constants";
 import { blockedByObstacle, clampDepth, type Obstacle } from "./terrain";
 import type { Character, Enemy } from "./types";
 
-// A boss below half HP fights faster. Exported so the renderer/HUD can react.
 export function isEnraged(enemy: Enemy): boolean {
   return enemy.kind === "boss" && enemy.hp > 0 && enemy.hp <= enemy.maxHp * 0.5;
 }
 
-// Decay and apply residual knockback velocity (set when the grunt is hit).
-function applyKnockback(enemy: Enemy, obstacles: Obstacle[]) {
-  if (Math.abs(enemy.vx) > 0.1 || Math.abs(enemy.vy) > 0.1) {
-    const r = enemy.w * COLLISION_RADIUS_FACTOR;
-    const tryX = enemy.x + enemy.vx;
-    if (!blockedByObstacle(tryX, enemy.y, r, obstacles)) enemy.x = tryX;
-    enemy.y = clampDepth(enemy.x, enemy.y + enemy.vy);
-    enemy.vx *= 0.8;
-    enemy.vy *= 0.8;
-  } else {
-    enemy.vx = 0;
-    enemy.vy = 0;
-  }
-}
-
-// Step 3 enemy: a grunt that chases the player and attacks when in range.
-// `others` is the full enemy list, used so grunts spread out instead of
-// stacking on the same pixel. Damage to the player is resolved in the engine
-// during the swing's hit frame (see GameEngine.resolveEnemyAttack).
 export function updateEnemy(
   enemy: Enemy,
   player: Character,
@@ -39,22 +21,15 @@ export function updateEnemy(
 ) {
   if (enemy.state === "dead") return;
 
-  if (enemy.flashTimer > 0) enemy.flashTimer--;
-  if (enemy.hurtTimer > 0) enemy.hurtTimer--;
-  if (enemy.attackTimer > 0) enemy.attackTimer--;
-  if (enemy.attackCooldown > 0) enemy.attackCooldown--;
-
-  // Always face the player.
+  tickTimers(enemy);
   enemy.facing = player.x >= enemy.x ? 1 : -1;
 
-  // Stunned after being hit: take the knockback and do nothing else.
   if (enemy.hurtTimer > 0) {
     applyKnockback(enemy, obstacles);
     enemy.state = "hurt";
     return;
   }
 
-  // Mid-swing: hold position; the swing plays out and resolves in the engine.
   if (enemy.attackTimer > 0) {
     enemy.vx = 0;
     enemy.vy = 0;
@@ -64,77 +39,110 @@ export function updateEnemy(
 
   const dx = player.x - enemy.x;
   const dy = player.y - enemy.y;
-  const adx = Math.abs(dx);
-  const ady = Math.abs(dy);
 
-  // Enraged boss (below half HP): faster swings and movement.
   const enraged = isEnraged(enemy);
-  const speed = enraged ? enemy.speed * 1.45 : enemy.speed;
-  const recovery = enraged ? ENEMY_ATTACK_COOLDOWN * 0.45 : ENEMY_ATTACK_COOLDOWN;
+  const speed = enraged ? enemy.speed * ENRAGE_SPEED_FACTOR : enemy.speed;
+  const recovery = enraged ? ENEMY_ATTACK_COOLDOWN * ENRAGE_RECOVERY_FACTOR : ENEMY_ATTACK_COOLDOWN;
 
-  // In range and ready: commit to a swing.
-  if (adx <= enemy.attackRange && ady <= ENEMY_ATTACK_DEPTH && enemy.attackCooldown === 0) {
-    enemy.attackTimer = enemy.attackDuration;
-    enemy.attackCooldown = enemy.attackDuration + recovery;
-    enemy.hasHitThisSwing = false;
-    enemy.state = "attack";
+  const inAttackRange = Math.abs(dx) <= enemy.attackRange && Math.abs(dy) <= ENEMY_ATTACK_DEPTH;
+  if (inAttackRange && enemy.attackCooldown === 0) {
+    commitSwing(enemy, recovery);
+    return;
+  }
+
+  if (Math.abs(dx) <= enemy.aggroRange) {
+    chase(enemy, dx, dy, speed, others, obstacles);
+    return;
+  }
+
+  applyKnockback(enemy, obstacles);
+  enemy.state = "idle";
+  enemy.animPhase += 0.04;
+}
+
+function tickTimers(enemy: Enemy) {
+  if (enemy.flashTimer > 0) enemy.flashTimer--;
+  if (enemy.hurtTimer > 0) enemy.hurtTimer--;
+  if (enemy.attackTimer > 0) enemy.attackTimer--;
+  if (enemy.attackCooldown > 0) enemy.attackCooldown--;
+}
+
+function commitSwing(enemy: Enemy, recovery: number) {
+  enemy.attackTimer = enemy.attackDuration;
+  enemy.attackCooldown = enemy.attackDuration + recovery;
+  enemy.hasHitThisSwing = false;
+  enemy.state = "attack";
+  enemy.vx = 0;
+  enemy.vy = 0;
+}
+
+function chase(
+  enemy: Enemy,
+  dx: number,
+  dy: number,
+  speed: number,
+  others: Enemy[],
+  obstacles: Obstacle[]
+) {
+  const seekX = Math.abs(dx) > enemy.attackRange - 6 ? Math.sign(dx) : 0;
+  const seekY = Math.abs(dy) > ENEMY_ATTACK_DEPTH - 6 ? Math.sign(dy) : 0;
+  const { spreadX, spreadY } = separationFrom(enemy, others);
+
+  let vx = seekX + spreadX * 0.7;
+  let vy = seekY + spreadY * 0.7;
+  const length = Math.hypot(vx, vy);
+  if (length === 0) {
+    enemy.state = "idle";
+    return;
+  }
+  vx /= length;
+  vy /= length;
+
+  const radius = enemy.w * COLLISION_RADIUS_FACTOR;
+  const nextX = enemy.x + vx * speed;
+  if (!blockedByObstacle(nextX, enemy.y, radius, obstacles)) enemy.x = nextX;
+  const nextY = clampDepth(enemy.x, enemy.y + vy * speed);
+  if (!blockedByObstacle(enemy.x, nextY, radius, obstacles)) enemy.y = nextY;
+  enemy.y = clampDepth(enemy.x, enemy.y);
+
+  enemy.state = "walk";
+  enemy.animPhase += 0.2;
+}
+
+// Push away from nearby living enemies so packs fan out across depth lanes
+// instead of stacking on one pixel.
+function separationFrom(enemy: Enemy, others: Enemy[]) {
+  let spreadX = 0;
+  let spreadY = 0;
+  for (const other of others) {
+    if (other === enemy || other.state === "dead") continue;
+    const offsetX = enemy.x - other.x;
+    const offsetY = enemy.y - other.y;
+    const distance = Math.hypot(offsetX, offsetY);
+    if (distance >= ENEMY_SEPARATION) continue;
+    if (distance > 0.001) {
+      spreadX += offsetX / distance;
+      spreadY += offsetY / distance;
+    }
+    // Same depth (or same pixel): break the tie deterministically by id so the
+    // pair peels into different lanes instead of jostling forever.
+    if (Math.abs(offsetY) < 1) {
+      spreadY += enemy.id > other.id ? 1 : -1;
+    }
+  }
+  return { spreadX, spreadY };
+}
+
+function applyKnockback(enemy: Enemy, obstacles: Obstacle[]) {
+  if (Math.abs(enemy.vx) < 0.1 && Math.abs(enemy.vy) < 0.1) {
     enemy.vx = 0;
     enemy.vy = 0;
     return;
   }
-
-  // Chase if the player is within aggro range.
-  if (adx <= enemy.aggroRange) {
-    let mvx = 0;
-    let mvy = 0;
-    // Close the gap, but stop nudging once inside attack distance.
-    if (adx > enemy.attackRange - 6) mvx = Math.sign(dx);
-    if (ady > ENEMY_ATTACK_DEPTH - 6) mvy = Math.sign(dy);
-
-    // Separation: push away from nearby grunts so they fan out.
-    let sepx = 0;
-    let sepy = 0;
-    for (const o of others) {
-      if (o === enemy || o.state === "dead") continue;
-      const ox = enemy.x - o.x;
-      const oy = enemy.y - o.y;
-      const dist = Math.hypot(ox, oy);
-      if (dist >= ENEMY_SEPARATION) continue;
-      if (dist > 0.001) {
-        sepx += ox / dist;
-        sepy += oy / dist;
-      }
-      // When two grunts are stacked (or nearly collinear with the player on
-      // the x-axis), x-separation alone just slows both equally. Break the tie
-      // in the depth axis so they peel into different lanes — deterministic by
-      // id so the split is stable.
-      if (Math.abs(oy) < 1) {
-        sepy += enemy.id > o.id ? 1 : -1;
-      }
-    }
-
-    let vx = mvx + sepx * 0.7;
-    let vy = mvy + sepy * 0.7;
-    const len = Math.hypot(vx, vy);
-    if (len > 0) {
-      vx /= len;
-      vy /= len;
-      const r = enemy.w * COLLISION_RADIUS_FACTOR;
-      const tryX = enemy.x + vx * speed;
-      if (!blockedByObstacle(tryX, enemy.y, r, obstacles)) enemy.x = tryX;
-      const tryY = clampDepth(enemy.x, enemy.y + vy * speed);
-      if (!blockedByObstacle(enemy.x, tryY, r, obstacles)) enemy.y = tryY;
-      enemy.y = clampDepth(enemy.x, enemy.y);
-      enemy.state = "walk";
-      enemy.animPhase += 0.2;
-    } else {
-      enemy.state = "idle";
-    }
-    return;
-  }
-
-  // Out of range: idle, shedding any leftover knockback.
-  applyKnockback(enemy, obstacles);
-  enemy.state = "idle";
-  enemy.animPhase += 0.04;
+  const radius = enemy.w * COLLISION_RADIUS_FACTOR;
+  const nextX = enemy.x + enemy.vx;
+  if (!blockedByObstacle(nextX, enemy.y, radius, obstacles)) enemy.x = nextX;
+  enemy.y = clampDepth(enemy.x, enemy.y + enemy.vy);
+  enemy.vx *= 0.8;
+  enemy.vy *= 0.8;
 }

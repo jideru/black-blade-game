@@ -1,24 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { CANVAS_SIZE, GameEngine } from "../game/engine";
-import type { GameState } from "../game/types";
+import { VIEW_HEIGHT, VIEW_WIDTH } from "../game/constants";
+import { GameEngine } from "../game/engine";
+import type { HudState } from "../game/types";
+import { buildHud, createWorld } from "../game/world";
 import { Hud } from "./Hud";
-
-const EMPTY_HUD: GameState["hud"] = {
-  playerHp: 100,
-  playerMaxHp: 100,
-  playerMana: 100,
-  playerMaxMana: 100,
-  attackDamage: 34,
-  enemiesRemaining: 0,
-  progress: 0,
-  phase: "playing",
-  boss: null,
-};
 
 export function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
-  const [hud, setHud] = useState<GameState["hud"]>(EMPTY_HUD);
+  const [hud, setHud] = useState<HudState>(() => buildHud(createWorld()));
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,13 +24,8 @@ export function Game() {
 
   return (
     <div className="game-shell">
-      <div className="game-frame" style={{ aspectRatio: `${CANVAS_SIZE.width} / ${CANVAS_SIZE.height}` }}>
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_SIZE.width}
-          height={CANVAS_SIZE.height}
-          className="game-canvas"
-        />
+      <div className="game-frame" style={{ aspectRatio: `${VIEW_WIDTH} / ${VIEW_HEIGHT}` }}>
+        <canvas ref={canvasRef} width={VIEW_WIDTH} height={VIEW_HEIGHT} className="game-canvas" />
         <Hud hud={hud} onRestart={() => engineRef.current?.reset()} />
       </div>
       <p className="controls">

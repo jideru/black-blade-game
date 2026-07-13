@@ -4,12 +4,11 @@ import {
   FLOOR_BOTTOM,
   FLOOR_TOP,
   LEVEL_END_X,
+  MAGIC_RADIUS,
   VIEW_HEIGHT,
   VIEW_WIDTH,
-  WORLD_WIDTH,
 } from "./constants";
-import { MAGIC_RADIUS } from "./constants";
-import { ENEMY_TYPES, type KnightColors } from "./enemyTypes";
+import type { EnemyKind } from "./enemyTypes";
 import { backEdgeY, type Obstacle } from "./terrain";
 import type { Character, Enemy, GameState, Pickup } from "./types";
 
@@ -22,6 +21,14 @@ function depthScale(y: number) {
   return lerp(DEPTH_SCALE_MIN, DEPTH_SCALE_MAX, Math.max(0, Math.min(1, t)));
 }
 
+interface KnightColors {
+  body: string;
+  bodyDark: string;
+  trim: string;
+  skin: string;
+  blade: string;
+}
+
 const PLAYER_COLORS: KnightColors = {
   body: "#2f6fb0",
   bodyDark: "#1d4a7a",
@@ -30,23 +37,33 @@ const PLAYER_COLORS: KnightColors = {
   blade: "#22202b",
 };
 
+const ENEMY_PALETTES: Record<EnemyKind, KnightColors> = {
+  grunt: { body: "#5a8f3c", bodyDark: "#3d6627", trim: "#7a4a2a", skin: "#8fbf5e", blade: "#9a9a9a" },
+  brute: { body: "#8a4a3a", bodyDark: "#5e2f24", trim: "#caa23a", skin: "#b8763e", blade: "#c0c0c8" },
+  runner: { body: "#c08a2a", bodyDark: "#8a5e1a", trim: "#e0d050", skin: "#d6b25e", blade: "#b0b0b8" },
+  boss: { body: "#3a2d4a", bodyDark: "#241a30", trim: "#b03a3a", skin: "#7a6a8a", blade: "#1a1620" },
+};
+
+// The knight rig is drawn at this height; other body sizes scale the whole rig.
+const RIG_HEIGHT = 78;
+
 type Drawable =
-  | { y: number; sort: number; kind: "player"; ref: Character }
-  | { y: number; sort: number; kind: "enemy"; ref: Enemy }
-  | { y: number; sort: number; kind: "obstacle"; ref: Obstacle }
-  | { y: number; sort: number; kind: "pickup"; ref: Pickup };
+  | { sort: number; kind: "player"; ref: Character }
+  | { sort: number; kind: "enemy"; ref: Enemy }
+  | { sort: number; kind: "obstacle"; ref: Obstacle }
+  | { sort: number; kind: "pickup"; ref: Pickup };
 
 export function render(ctx: CanvasRenderingContext2D, state: GameState) {
   ctx.clearRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
   drawBackground(ctx, state.camX);
 
-  // Everything on the ground plane is drawn back-to-front (by feet y) so closer
-  // things overlap farther ones — characters and obstacles interleave.
+  // Everything on the ground plane draws back-to-front (by feet y) so closer
+  // things overlap farther ones.
   const drawables: Drawable[] = [
-    { y: state.player.y, sort: state.player.y, kind: "player", ref: state.player },
-    ...state.enemies.map((e): Drawable => ({ y: e.y, sort: e.y, kind: "enemy", ref: e })),
-    ...state.obstacles.map((o): Drawable => ({ y: o.y, sort: o.y, kind: "obstacle", ref: o })),
-    ...state.pickups.map((pk): Drawable => ({ y: pk.y, sort: pk.y, kind: "pickup", ref: pk })),
+    { sort: state.player.y, kind: "player", ref: state.player },
+    ...state.enemies.map((e): Drawable => ({ sort: e.y, kind: "enemy", ref: e })),
+    ...state.obstacles.map((o): Drawable => ({ sort: o.y, kind: "obstacle", ref: o })),
+    ...state.pickups.map((p): Drawable => ({ sort: p.y, kind: "pickup", ref: p })),
   ];
   drawables.sort((a, b) => a.sort - b.sort);
 
@@ -56,17 +73,10 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
     if (d.kind === "player") {
       drawKnight(ctx, d.ref, screenX, PLAYER_COLORS, false);
     } else if (d.kind === "enemy") {
-      drawKnight(
-        ctx,
-        d.ref,
-        screenX,
-        ENEMY_TYPES[d.ref.kind].colors,
-        d.ref.flashTimer > 0,
-        d.ref.kind === "boss"
-      );
-      if (d.ref.state !== "dead" && d.ref.kind !== "boss") {
-        drawEnemyHealthBar(ctx, d.ref, screenX); // boss has the big HUD bar
-      }
+      const isBoss = d.ref.kind === "boss";
+      drawKnight(ctx, d.ref, screenX, ENEMY_PALETTES[d.ref.kind], d.ref.flashTimer > 0, isBoss);
+      const showBar = d.ref.state !== "dead" && !isBoss; // boss uses the HUD bar
+      if (showBar) drawEnemyHealthBar(ctx, d.ref, screenX);
     } else if (d.kind === "obstacle") {
       drawObstacle(ctx, d.ref, screenX);
     } else {
@@ -74,7 +84,6 @@ export function render(ctx: CanvasRenderingContext2D, state: GameState) {
     }
   }
 
-  // The magic burst draws on top of everything, in world space.
   if (state.magicFx) drawMagicFx(ctx, state.magicFx, state.camX);
 }
 
@@ -162,8 +171,8 @@ function drawBackground(ctx: CanvasRenderingContext2D, camX: number) {
   ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
   // Distant hills (slow parallax)
-  drawHills(ctx, camX * 0.2, FLOOR_TOP - 30, "#4a3a66", 220, 520);
-  drawHills(ctx, camX * 0.4, FLOOR_TOP + 5, "#3a2e52", 160, 400);
+  drawHills(ctx, camX * 0.2, FLOOR_TOP - 30, "#4a3a66", 220);
+  drawHills(ctx, camX * 0.4, FLOOR_TOP + 5, "#3a2e52", 160);
 
   // Grassy embankment behind the path (fills down past the lowest back edge).
   const grass = ctx.createLinearGradient(0, FLOOR_TOP - 10, 0, FLOOR_TOP + 70);
@@ -320,8 +329,7 @@ function drawHills(
   scroll: number,
   baseY: number,
   color: string,
-  height: number,
-  _period: number
+  height: number
 ) {
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -380,9 +388,7 @@ function drawKnight(
   flash: boolean,
   horned = false
 ) {
-  // Scale by depth and by body height relative to the player (h = 78), so
-  // brutes loom larger and runners are smaller.
-  const scale = depthScale(c.y) * (c.h / 78);
+  const scale = depthScale(c.y) * (c.h / RIG_HEIGHT);
   const feetY = c.y;
   const dead = c.state === "dead";
 
@@ -421,9 +427,7 @@ function drawKnight(
   const hurtTilt = c.hurtTimer > 0 ? 0.12 : 0;
   ctx.rotate(hurtTilt);
 
-  // Geometry uses a fixed reference height; the outer scale (c.h/78) sets size.
-  const H = 78;
-  const bodyTop = -H + 24; // top of torso relative to feet
+  const bodyTop = -RIG_HEIGHT + 24;
 
   // Legs
   ctx.strokeStyle = colors.bodyDark;
@@ -438,7 +442,7 @@ function drawKnight(
 
   // Torso
   ctx.fillStyle = flash ? "#ffffff" : colors.body;
-  roundRect(ctx, -16, bodyTop + bob, 32, H - 48, 9);
+  roundRect(ctx, -16, bodyTop + bob, 32, RIG_HEIGHT - 48, 9);
   ctx.fill();
   // Belt / trim
   ctx.fillStyle = flash ? "#ffffff" : colors.trim;
@@ -489,7 +493,7 @@ function drawSword(
   bob: number,
   flash: boolean
 ) {
-  const armY = 78 * -0.55 + bob;
+  const armY = RIG_HEIGHT * -0.55 + bob;
   let swing = -0.5; // resting angle (blade up)
   if (c.state === "attack") {
     const elapsed = c.attackDuration - c.attackTimer;
@@ -571,6 +575,3 @@ function roundRect(
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
 }
-
-// Keep WORLD_WIDTH referenced for clarity of intent in this module.
-void WORLD_WIDTH;
