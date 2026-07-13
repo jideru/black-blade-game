@@ -1,8 +1,8 @@
 // Headless playthrough simulations: scripted bots play the real level through
 // the same stepWorld the game runs. Run with: npm run sim
+import { availableMagicTier } from "../src/game/combat";
 import {
   COLLISION_RADIUS_FACTOR,
-  MAGIC_COST,
   MAGIC_RADIUS,
   PLAYER_ATTACK_DEPTH,
   PLAYER_ATTACK_REACH,
@@ -70,7 +70,7 @@ function botInput(state: GameState, cfg: BotConfig, mem: BotMemory): InputState 
     if (input.attackPressed) mem.cooldown = cfg.reactionDelay ?? 0;
     mem.prevWant = want;
 
-    if (cfg.useMagic && p.magicCooldown === 0 && p.mana >= MAGIC_COST) {
+    if (cfg.useMagic && p.magicCooldown === 0 && availableMagicTier(p)) {
       if (Math.hypot(dx, dy * 1.4) <= MAGIC_RADIUS) input.magicPressed = true;
     }
   } else {

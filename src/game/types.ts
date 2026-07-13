@@ -62,6 +62,7 @@ export interface MagicFx {
   y: number;
   timer: number;
   maxTimer: number;
+  power: number; // the cast tier's damage factor, used to scale the visual
 }
 
 export interface GameState {

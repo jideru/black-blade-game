@@ -103,13 +103,14 @@ drops for deterministic runs.
       are placed to always leave a clear lane (verified completable by the
       playthrough sims).
 
-- [x] **Pickups & magic:** the player has a **magic bar** and a **magic special**
-      (`K`/`L`) — an area burst that spends the bar. The bar starts **empty** and
-      never regenerates: **magic orbs** are its only source, and five orbs fill
-      it exactly (the HUD bar is segmented in fifths). Pickups dot the level and
-      drop from some slain grunts: **health** (restore HP), **magic orbs** (fill
-      one bar segment), and **power** (permanently raise sword damage for the
-      run). See `src/game/pickups.ts`.
+- [x] **Pickups & magic:** the player has a **magic bar** segmented in fifths.
+      It starts **empty** and never regenerates: **magic orbs** are its only
+      source, one segment per orb. The **magic special** (`K`/`L`) is an area
+      burst with **three tiers** — pressing it fires the strongest tier the
+      banked orbs afford and spends that tier's orbs: **1 orb → 50%** damage,
+      **3 orbs → 100%** (one-shots a normal grunt), **full bar → 200%**. Other
+      pickups: **health** (restore HP) and **power** (permanently raise sword
+      damage for the run). See `src/game/combat.ts` and `src/game/pickups.ts`.
 
 - [x] **Multiple enemy types:** per-type stats live in `src/game/enemyTypes.ts`
       and drive the shared AI — **grunts** (balanced fodder), **brutes** (slow,

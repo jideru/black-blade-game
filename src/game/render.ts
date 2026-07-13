@@ -143,10 +143,10 @@ function drawMagicFx(ctx: CanvasRenderingContext2D, fx: GameState["magicFx"], ca
   const radius = MAGIC_RADIUS * (0.3 + 0.7 * t);
   const sx = fx.x - camX;
   ctx.save();
-  ctx.globalAlpha = (1 - t) * 0.8;
-  // Expanding shockwave ring.
-  ctx.strokeStyle = "#8ab6ff";
-  ctx.lineWidth = 6;
+  // Stronger tiers flash brighter with a thicker shockwave.
+  ctx.globalAlpha = Math.min(1, (1 - t) * (0.5 + fx.power * 0.4));
+  ctx.strokeStyle = fx.power >= 2 ? "#cfe0ff" : "#8ab6ff";
+  ctx.lineWidth = 3 + fx.power * 3;
   ctx.beginPath();
   ctx.ellipse(sx, fx.y - 18, radius, radius * 0.6, 0, 0, Math.PI * 2);
   ctx.stroke();

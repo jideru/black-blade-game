@@ -7,18 +7,29 @@ import {
   HURT_INVULN,
   KNOCKBACK,
   LEVEL_END_X,
+  MAGIC_BASE_DAMAGE,
   MAGIC_COOLDOWN,
-  MAGIC_COST,
-  MAGIC_DAMAGE,
   MAGIC_FX_DURATION,
   MAGIC_RADIUS,
+  MAGIC_TIERS,
+  PICKUP_MANA,
   PICKUP_RADIUS,
   PLAYER_ATTACK_DEPTH,
   PLAYER_ATTACK_REACH,
   PLAYER_MIN_X,
 } from "./constants";
 import { applyPickup, dropPickup } from "./pickups";
-import type { Enemy, GameState, PickupKind } from "./types";
+import type { Enemy, GameState, PickupKind, Player } from "./types";
+
+export type MagicTier = (typeof MAGIC_TIERS)[number];
+
+/** The strongest magic tier the player's banked orbs afford, if any. */
+export function availableMagicTier(player: Player): MagicTier | null {
+  for (const tier of MAGIC_TIERS) {
+    if (player.mana >= tier.orbs * PICKUP_MANA) return tier;
+  }
+  return null;
+}
 
 export function damagePlayer(state: GameState, amount: number, pushDir: number) {
   const p = state.player;
@@ -90,21 +101,31 @@ export function resolveEnemyAttack(state: GameState, enemy: Enemy) {
 
 export function canCastMagic(state: GameState): boolean {
   const p = state.player;
-  return p.magicCooldown === 0 && p.mana >= MAGIC_COST && p.attackTimer === 0;
+  return p.magicCooldown === 0 && p.attackTimer === 0 && availableMagicTier(p) !== null;
 }
 
 export function castMagic(state: GameState) {
   const p = state.player;
-  p.mana -= MAGIC_COST;
-  p.magicCooldown = MAGIC_COOLDOWN;
-  state.magicFx = { x: p.x, y: p.y, timer: MAGIC_FX_DURATION, maxTimer: MAGIC_FX_DURATION };
+  const tier = availableMagicTier(p);
+  if (!tier) return;
 
+  p.mana -= tier.orbs * PICKUP_MANA;
+  p.magicCooldown = MAGIC_COOLDOWN;
+  state.magicFx = {
+    x: p.x,
+    y: p.y,
+    timer: MAGIC_FX_DURATION,
+    maxTimer: MAGIC_FX_DURATION,
+    power: tier.damageFactor,
+  };
+
+  const damage = MAGIC_BASE_DAMAGE * tier.damageFactor;
   for (const enemy of state.enemies) {
     if (enemy.state === "dead") continue;
     const dx = enemy.x - p.x;
     const dy = (enemy.y - p.y) * 1.4;
     if (dx * dx + dy * dy <= MAGIC_RADIUS * MAGIC_RADIUS) {
-      damageEnemy(state, enemy, Math.sign(dx) || 1, MAGIC_DAMAGE);
+      damageEnemy(state, enemy, Math.sign(dx) || 1, damage);
     }
   }
 }

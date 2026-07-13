@@ -1,11 +1,14 @@
 // Headless unit checks for the pure game logic. Run with: npm test
-import { resolveEnemyAttack } from "../src/game/combat";
+import { availableMagicTier, castMagic, resolveEnemyAttack } from "../src/game/combat";
 import {
   HURT_INVULN,
+  MAGIC_BASE_DAMAGE,
   MANA_ORBS_TO_FILL,
   PICKUP_HEALTH,
+  PICKUP_MANA,
   PICKUP_POWER,
 } from "../src/game/constants";
+import { ENEMY_TYPES } from "../src/game/enemyTypes";
 import { isEnraged, updateEnemy } from "../src/game/enemy";
 import { neutralInput } from "../src/game/input";
 import { applyPickup } from "../src/game/pickups";
@@ -140,6 +143,52 @@ console.log("Test 6b: the magic bar is orb-driven");
   const manaBefore = p.mana = 40;
   for (let i = 0; i < 300; i++) updatePlayer(p, idle, []);
   assert(p.mana === manaBefore, "mana does not regenerate on its own");
+}
+
+console.log("Test 6c: magic tiers scale with banked orbs");
+{
+  const orb = PICKUP_MANA;
+  const gruntInBlast = (s: GameState) => {
+    const grunt = s.enemies[0];
+    s.player.x = grunt.x - 60;
+    s.player.y = grunt.y;
+    return grunt;
+  };
+
+  let s = bareWorld();
+  s.player.mana = 0;
+  assert(availableMagicTier(s.player) === null, "no cast with an empty bar");
+
+  s = bareWorld();
+  let grunt = gruntInBlast(s);
+  s.player.mana = orb; // 1 orb -> 50%
+  castMagic(s);
+  assert(grunt.hp === grunt.maxHp - MAGIC_BASE_DAMAGE * 0.5, "1 orb hits for 50%");
+  assert(s.player.mana === 0, "1-orb cast spends exactly one orb");
+
+  s = bareWorld();
+  grunt = gruntInBlast(s);
+  s.player.mana = 3 * orb; // 3 orbs -> 100%
+  castMagic(s);
+  assert(grunt.state === "dead", "3 orbs (100%) kills a normal monster");
+  assert(MAGIC_BASE_DAMAGE >= ENEMY_TYPES.grunt.maxHp, "100% damage covers grunt max HP");
+  assert(s.player.mana === 0, "3-orb cast spends exactly three orbs");
+
+  s = bareWorld();
+  grunt = gruntInBlast(s);
+  s.player.mana = 4 * orb; // 4 orbs -> still the 3-orb tier, one orb kept
+  castMagic(s);
+  assert(grunt.state === "dead", "4 orbs casts the 3-orb tier");
+  assert(s.player.mana === orb, "the leftover orb stays banked");
+
+  s = bareWorld();
+  const brute = s.enemies.find((e) => e.kind === "brute")!;
+  s.player.x = brute.x - 60;
+  s.player.y = brute.y;
+  s.player.mana = 5 * orb; // full bar -> 200%
+  castMagic(s);
+  assert(brute.hp === brute.maxHp - MAGIC_BASE_DAMAGE * 2, "full bar hits for 200%");
+  assert(s.player.mana === 0, "full-bar cast spends all five orbs");
 }
 
 console.log("Test 7: the Gate Warden boss");

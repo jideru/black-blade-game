@@ -39,9 +39,15 @@ export const ENEMY_DROP_CHANCE = 0.35;
 export const ENRAGE_SPEED_FACTOR = 1.45;
 export const ENRAGE_RECOVERY_FACTOR = 0.45;
 
-// Magic special
-export const MAGIC_COST = 35;
-export const MAGIC_DAMAGE = 42;
+// Magic special: one button, three tiers. A cast fires the strongest tier the
+// banked orbs afford and consumes that tier's orbs. Base damage equals a
+// grunt's max HP, so the 100% tier one-shots a normal monster.
+export const MAGIC_BASE_DAMAGE = 50;
+export const MAGIC_TIERS = [
+  { orbs: 5, damageFactor: 2 },
+  { orbs: 3, damageFactor: 1 },
+  { orbs: 1, damageFactor: 0.5 },
+] as const;
 export const MAGIC_RADIUS = 150;
 export const MAGIC_COOLDOWN = 36;
 export const MAGIC_FX_DURATION = 22;
