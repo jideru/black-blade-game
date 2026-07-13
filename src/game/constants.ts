@@ -16,7 +16,6 @@ export const LEVEL_END_X = WORLD_WIDTH - 120;
 export const PLAYER_SPEED = 3.4;
 export const PLAYER_MAX_HP = 100;
 export const PLAYER_MAX_MANA = 100;
-export const MANA_REGEN = 0.04;
 export const PLAYER_ATTACK_DAMAGE = 34;
 export const PLAYER_ATTACK_DURATION = 18;
 export const PLAYER_ATTACK_COOLDOWN = 10;
@@ -47,9 +46,11 @@ export const MAGIC_RADIUS = 150;
 export const MAGIC_COOLDOWN = 36;
 export const MAGIC_FX_DURATION = 22;
 
-// Pickups
+// Pickups. The magic bar starts empty and does not regenerate — magic orbs
+// are its only source, and five of them fill it exactly.
+export const MANA_ORBS_TO_FILL = 5;
 export const PICKUP_HEALTH = 35;
-export const PICKUP_MANA = 45;
+export const PICKUP_MANA = PLAYER_MAX_MANA / MANA_ORBS_TO_FILL;
 export const PICKUP_POWER = 8;
 export const PICKUP_RADIUS = 22;
 

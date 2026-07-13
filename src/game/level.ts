@@ -23,7 +23,7 @@ export function createPlayer(): Player {
     hp: PLAYER_MAX_HP,
     maxHp: PLAYER_MAX_HP,
     state: "idle",
-    mana: PLAYER_MAX_MANA,
+    mana: 0,
     maxMana: PLAYER_MAX_MANA,
     attackDamage: PLAYER_ATTACK_DAMAGE,
     magicCooldown: 0,

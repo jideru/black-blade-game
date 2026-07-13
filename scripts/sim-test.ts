@@ -1,8 +1,15 @@
 // Headless unit checks for the pure game logic. Run with: npm test
 import { resolveEnemyAttack } from "../src/game/combat";
-import { HURT_INVULN, PICKUP_HEALTH, PICKUP_MANA, PICKUP_POWER } from "../src/game/constants";
+import {
+  HURT_INVULN,
+  MANA_ORBS_TO_FILL,
+  PICKUP_HEALTH,
+  PICKUP_POWER,
+} from "../src/game/constants";
 import { isEnraged, updateEnemy } from "../src/game/enemy";
+import { neutralInput } from "../src/game/input";
 import { applyPickup } from "../src/game/pickups";
+import { updatePlayer } from "../src/game/player";
 import type { Enemy, GameState } from "../src/game/types";
 import { createWorld } from "../src/game/world";
 
@@ -112,13 +119,27 @@ console.log("Test 6: pickups apply their effects (and clamp to max)");
   applyPickup(p, "health");
   assert(p.hp === p.maxHp, "health pickup never exceeds max HP");
 
-  p.mana = 10;
-  applyPickup(p, "mana");
-  assert(p.mana === Math.min(p.maxMana, 10 + PICKUP_MANA), "mana pickup restores mana");
-
   const before = p.attackDamage;
   applyPickup(p, "power");
   assert(p.attackDamage === before + PICKUP_POWER, "power pickup raises sword damage");
+}
+
+console.log("Test 6b: the magic bar is orb-driven");
+{
+  const s = bareWorld();
+  const p = s.player;
+  assert(p.mana === 0, "magic bar starts empty");
+
+  for (let i = 0; i < MANA_ORBS_TO_FILL; i++) applyPickup(p, "mana");
+  assert(p.mana === p.maxMana, `${MANA_ORBS_TO_FILL} orbs fill the bar exactly`);
+
+  applyPickup(p, "mana");
+  assert(p.mana === p.maxMana, "extra orbs never overfill");
+
+  const idle = neutralInput();
+  const manaBefore = p.mana = 40;
+  for (let i = 0; i < 300; i++) updatePlayer(p, idle, []);
+  assert(p.mana === manaBefore, "mana does not regenerate on its own");
 }
 
 console.log("Test 7: the Gate Warden boss");

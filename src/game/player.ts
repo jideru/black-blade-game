@@ -1,7 +1,6 @@
 import {
   COLLISION_RADIUS_FACTOR,
   LEVEL_END_X,
-  MANA_REGEN,
   PLAYER_ATTACK_COOLDOWN,
   PLAYER_ATTACK_DURATION,
   PLAYER_MIN_X,
@@ -33,7 +32,6 @@ function tickTimers(player: Player) {
   if (player.magicCooldown > 0) player.magicCooldown--;
   if (player.hurtTimer > 0) player.hurtTimer--;
   if (player.invulnTimer > 0) player.invulnTimer--;
-  player.mana = Math.min(player.maxMana, player.mana + MANA_REGEN);
 }
 
 function startSwing(player: Player) {

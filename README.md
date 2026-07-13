@@ -103,10 +103,13 @@ drops for deterministic runs.
       are placed to always leave a clear lane (verified completable by the
       playthrough sims).
 
-- [x] **Pickups & magic:** the player has **mana** and a **magic special** (`K`/`L`)
-      — an area burst that costs mana. Pickups dot the level and drop from some
-      slain grunts: **health** (restore HP), **mana** (restore mana), and **power**
-      (permanently raise sword damage for the run). See `src/game/pickups.ts`.
+- [x] **Pickups & magic:** the player has a **magic bar** and a **magic special**
+      (`K`/`L`) — an area burst that spends the bar. The bar starts **empty** and
+      never regenerates: **magic orbs** are its only source, and five orbs fill
+      it exactly (the HUD bar is segmented in fifths). Pickups dot the level and
+      drop from some slain grunts: **health** (restore HP), **magic orbs** (fill
+      one bar segment), and **power** (permanently raise sword damage for the
+      run). See `src/game/pickups.ts`.
 
 - [x] **Multiple enemy types:** per-type stats live in `src/game/enemyTypes.ts`
       and drive the shared AI — **grunts** (balanced fodder), **brutes** (slow,
