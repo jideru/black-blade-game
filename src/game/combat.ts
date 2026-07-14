@@ -10,7 +10,6 @@ import {
   MAGIC_BASE_DAMAGE,
   MAGIC_COOLDOWN,
   MAGIC_FX_DURATION,
-  MAGIC_RADIUS,
   MAGIC_TIERS,
   PICKUP_MANA,
   PICKUP_RADIUS,
@@ -117,6 +116,7 @@ export function castMagic(state: GameState) {
     timer: MAGIC_FX_DURATION,
     maxTimer: MAGIC_FX_DURATION,
     power: tier.damageFactor,
+    radius: tier.radius,
   };
 
   const damage = MAGIC_BASE_DAMAGE * tier.damageFactor;
@@ -124,7 +124,7 @@ export function castMagic(state: GameState) {
     if (enemy.state === "dead") continue;
     const dx = enemy.x - p.x;
     const dy = (enemy.y - p.y) * 1.4;
-    if (dx * dx + dy * dy <= MAGIC_RADIUS * MAGIC_RADIUS) {
+    if (dx * dx + dy * dy <= tier.radius * tier.radius) {
       damageEnemy(state, enemy, Math.sign(dx) || 1, damage);
     }
   }

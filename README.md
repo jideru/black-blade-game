@@ -107,8 +107,9 @@ drops for deterministic runs.
       It starts **empty** and never regenerates: **magic orbs** are its only
       source, one segment per orb. The **magic special** (`K`/`L`) is an area
       burst with **three tiers** — pressing it fires the strongest tier the
-      banked orbs afford and spends that tier's orbs: **1 orb → 50%** damage,
-      **3 orbs → 100%** (one-shots a normal grunt), **full bar → 200%**. Other
+      banked orbs afford and spends that tier's orbs: **1 orb → 50%** damage
+      nearby, **3 orbs → 100%** at mid-range (one-shots a normal grunt),
+      **full bar → 200%** across the whole screen. Other
       pickups: **health** (restore HP) and **power** (permanently raise sword
       damage for the run). See `src/game/combat.ts` and `src/game/pickups.ts`.
 

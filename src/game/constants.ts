@@ -41,14 +41,15 @@ export const ENRAGE_RECOVERY_FACTOR = 0.45;
 
 // Magic special: one button, three tiers. A cast fires the strongest tier the
 // banked orbs afford and consumes that tier's orbs. Base damage equals a
-// grunt's max HP, so the 100% tier one-shots a normal monster.
+// grunt's max HP, so the 100% tier one-shots a normal monster. The blast
+// radius grows with the tier: nearby at 1 orb, the whole screen at 5
+// (VIEW_WIDTH is 960, so 520 reaches both edges from a centered player).
 export const MAGIC_BASE_DAMAGE = 50;
 export const MAGIC_TIERS = [
-  { orbs: 5, damageFactor: 2 },
-  { orbs: 3, damageFactor: 1 },
-  { orbs: 1, damageFactor: 0.5 },
+  { orbs: 5, damageFactor: 2, radius: 520 },
+  { orbs: 3, damageFactor: 1, radius: 260 },
+  { orbs: 1, damageFactor: 0.5, radius: 110 },
 ] as const;
-export const MAGIC_RADIUS = 150;
 export const MAGIC_COOLDOWN = 36;
 export const MAGIC_FX_DURATION = 22;
 

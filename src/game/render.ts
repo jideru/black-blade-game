@@ -4,7 +4,6 @@ import {
   FLOOR_BOTTOM,
   FLOOR_TOP,
   LEVEL_END_X,
-  MAGIC_RADIUS,
   VIEW_HEIGHT,
   VIEW_WIDTH,
 } from "./constants";
@@ -140,7 +139,7 @@ function drawPickup(ctx: CanvasRenderingContext2D, pk: Pickup, screenX: number) 
 function drawMagicFx(ctx: CanvasRenderingContext2D, fx: GameState["magicFx"], camX: number) {
   if (!fx) return;
   const t = 1 - fx.timer / fx.maxTimer; // 0 -> 1
-  const radius = MAGIC_RADIUS * (0.3 + 0.7 * t);
+  const radius = fx.radius * (0.3 + 0.7 * t);
   const sx = fx.x - camX;
   ctx.save();
   // Stronger tiers flash brighter with a thicker shockwave.

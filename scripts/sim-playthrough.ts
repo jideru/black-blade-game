@@ -3,7 +3,6 @@
 import { availableMagicTier } from "../src/game/combat";
 import {
   COLLISION_RADIUS_FACTOR,
-  MAGIC_RADIUS,
   PLAYER_ATTACK_DEPTH,
   PLAYER_ATTACK_REACH,
   PLAYER_SPEED,
@@ -70,8 +69,9 @@ function botInput(state: GameState, cfg: BotConfig, mem: BotMemory): InputState 
     if (input.attackPressed) mem.cooldown = cfg.reactionDelay ?? 0;
     mem.prevWant = want;
 
-    if (cfg.useMagic && p.magicCooldown === 0 && availableMagicTier(p)) {
-      if (Math.hypot(dx, dy * 1.4) <= MAGIC_RADIUS) input.magicPressed = true;
+    const tier = cfg.useMagic && p.magicCooldown === 0 ? availableMagicTier(p) : null;
+    if (tier && Math.hypot(dx, dy * 1.4) <= tier.radius) {
+      input.magicPressed = true;
     }
   } else {
     input.right = true; // head for the gate

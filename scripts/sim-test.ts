@@ -3,6 +3,7 @@ import { availableMagicTier, castMagic, resolveEnemyAttack } from "../src/game/c
 import {
   HURT_INVULN,
   MAGIC_BASE_DAMAGE,
+  MAGIC_TIERS,
   MANA_ORBS_TO_FILL,
   PICKUP_HEALTH,
   PICKUP_MANA,
@@ -189,6 +190,45 @@ console.log("Test 6c: magic tiers scale with banked orbs");
   castMagic(s);
   assert(brute.hp === brute.maxHp - MAGIC_BASE_DAMAGE * 2, "full bar hits for 200%");
   assert(s.player.mana === 0, "full-bar cast spends all five orbs");
+}
+
+console.log("Test 6d: blast radius grows with the tier");
+{
+  const orb = PICKUP_MANA;
+
+  // 1 orb: "nearby" only — a grunt 200px away is out of reach.
+  let s = bareWorld();
+  let grunt = s.enemies[0];
+  s.player.x = grunt.x - 200;
+  s.player.y = grunt.y;
+  s.player.mana = orb;
+  castMagic(s);
+  assert(grunt.hp === grunt.maxHp, "1-orb burst misses a grunt 200px away");
+
+  // 3 orbs: mid-range — the same 200px grunt is inside the blast.
+  s = bareWorld();
+  grunt = s.enemies[0];
+  s.player.x = grunt.x - 200;
+  s.player.y = grunt.y;
+  s.player.mana = 3 * orb;
+  castMagic(s);
+  assert(grunt.state === "dead", "3-orb burst reaches 200px");
+
+  // Full bar: screen-wide — a grunt half a screen away (500px) is hit.
+  s = bareWorld();
+  grunt = s.enemies[0];
+  s.player.x = grunt.x - 500;
+  s.player.y = grunt.y;
+  s.player.mana = 5 * orb;
+  castMagic(s);
+  assert(grunt.state === "dead", "full-bar nova reaches 500px (screen-wide)");
+
+  // Radii are strictly increasing across tiers.
+  const radii = [...MAGIC_TIERS].sort((a, b) => a.orbs - b.orbs).map((t) => t.radius);
+  assert(
+    radii[0] < radii[1] && radii[1] < radii[2],
+    `radius grows with orbs (${radii.join(" < ")})`
+  );
 }
 
 console.log("Test 7: the Gate Warden boss");
